@@ -2753,15 +2753,36 @@ MonoBehaviour:
   hitBoolParam: HitBool
   hitFlagSeconds: 0.05
   speedFloatParam: Speed
+  target: {fileID: 0}
+  detectRadius: 7
+  loseRadius: 11
+  leashRadius: 14
+  fieldOfView: 140
+  requireLineOfSight: 0
+  lineOfSightBlockers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  eyeOffset: {x: 0, y: 1.2, z: 0}
   wanderRadius: 8
-  moveSpeed: 2.5
-  rotateSpeed: 540
-  gravity: -10
   waitAtPointMin: 0.75
   waitAtPointMax: 2.5
   arrivalThreshold: 0.2
+  moveSpeed: 2.5
+  chaseSpeed: 3.4
+  returnSpeed: 3.2
+  rotateSpeed: 540
+  gravity: -10
   disableRootCapsuleCollider: 1
+  attackDamage: 8
+  attackDamageType: 0
+  attackRange: 1.35
+  attackHitGraceRange: 0.35
+  attackCooldown: 1.25
+  attackWindupSeconds: 0.22
+  attackLockSeconds: 0.55
+  attackTriggerParam: Attack
   destroyAfterDeathSeconds: 0.5
+  currentState: 0
 --- !u!136 &4504077672183219117
 CapsuleCollider:
   m_ObjectHideFlags: 0
