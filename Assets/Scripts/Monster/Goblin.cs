@@ -1,11 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Basic enemy finite state machine: patrol, chase, attack, return home, and death.
+/// 敌人的有限状态机：负责巡逻、追击、攻击、返回出生点和死亡流程。
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class Goblin : Monster
 {
+    // 目标检测相关参数：控制发现、丢失、追击范围以及视野/视线判断。
     [Header("Target")]
     [SerializeField] private Transform target;
     [SerializeField] private float detectRadius = 7f;
@@ -16,12 +17,14 @@ public class Goblin : Monster
     [SerializeField] private LayerMask lineOfSightBlockers = ~0;
     [SerializeField] private Vector3 eyeOffset = new Vector3(0f, 1.2f, 0f);
 
+    // 巡逻参数：控制随机巡逻半径、到点等待时间和到达判定。
     [Header("Patrol")]
     [SerializeField] private float wanderRadius = 8f;
     [SerializeField] private float waitAtPointMin = 0.75f;
     [SerializeField] private float waitAtPointMax = 2.5f;
     [SerializeField] private float arrivalThreshold = 0.2f;
 
+    // 移动参数：分别控制巡逻、追击、返程速度，以及转向和重力。
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 2.5f;
     [SerializeField] private float chaseSpeed = 3.4f;
@@ -30,6 +33,7 @@ public class Goblin : Monster
     [SerializeField] private float gravity = -10f;
     [SerializeField] private bool disableRootCapsuleCollider = true;
 
+    // 攻击参数：控制伤害、攻击距离、前摇、冷却和动画触发器。
     [Header("Attack")]
     [SerializeField] private int attackDamage = 8;
     [SerializeField] private DamageType attackDamageType = DamageType.Physical;
@@ -40,21 +44,25 @@ public class Goblin : Monster
     [SerializeField] private float attackLockSeconds = 0.55f;
     [SerializeField] private string attackTriggerParam = "";
 
+    // 死亡参数：控制死亡后对象销毁延迟。
     [Header("Death")]
     [SerializeField] private float destroyAfterDeathSeconds = 0.5f;
 
+    // 状态机的全部状态；Update 会根据 currentState 分发到对应行为。
     private enum State
     {
-        PatrolWait,
-        PatrolMove,
-        Chase,
-        Attack,
-        ReturnHome,
-        Dead
+        PatrolWait,   // 原地等待，等待计时结束或发现目标
+        PatrolMove,   // 向随机巡逻点移动
+        Chase,        // 追击目标
+        Attack,       // 攻击目标并处理攻击前摇/锁定时间
+        ReturnHome,   // 超出仇恨或活动范围后返回出生点
+        Dead          // 死亡后停止行为
     }
 
+    // 当前状态保留为可序列化字段，便于在 Inspector 中观察调试。
     [SerializeField] private State currentState = State.PatrolWait;
 
+    // 运行时缓存和计时数据。
     private CharacterController characterController;
     private Vector3 home;
     private Vector3 patrolTarget;
@@ -64,8 +72,10 @@ public class Goblin : Monster
     private float nextAttackAt = -999f;
     private bool attackDamageApplied;
 
+    // 对外暴露当前状态名称，方便 UI、调试面板或测试读取。
     public string CurrentStateName => currentState.ToString();
 
+    // 初始化依赖组件，并按配置关闭根节点胶囊碰撞体，避免和 CharacterController 重复碰撞。
     protected override void Awake()
     {
         base.Awake();
@@ -80,6 +90,7 @@ public class Goblin : Monster
         }
     }
 
+    // 记录出生点，尝试获取目标，并进入初始巡逻等待状态。
     private void Start()
     {
         home = transform.position;
@@ -87,6 +98,7 @@ public class Goblin : Monster
         EnterState(State.PatrolWait);
     }
 
+    // 在编辑器中修正参数范围，防止 Inspector 输入导致逻辑异常。
     private void OnValidate()
     {
         detectRadius = Mathf.Max(0f, detectRadius);
@@ -110,6 +122,7 @@ public class Goblin : Monster
         destroyAfterDeathSeconds = Mathf.Max(0f, destroyAfterDeathSeconds);
     }
 
+    // 主循环：先处理死亡和基础更新，再按当前状态执行对应行为。
     private void Update()
     {
         if (IsDead || characterController == null)
@@ -144,6 +157,7 @@ public class Goblin : Monster
         }
     }
 
+    // 受击后如果伤害有效，就把攻击来源设为目标并进入追击。
     public override bool TryTakeDamage(DamageInfo damage)
     {
         bool accepted = base.TryTakeDamage(damage);
@@ -157,6 +171,7 @@ public class Goblin : Monster
         return true;
     }
 
+    // 巡逻等待：静止一段随机时间，期间如果发现目标就切换到追击。
     private void UpdatePatrolWait()
     {
         SetLocomotionSpeed01(0f);
@@ -176,6 +191,7 @@ public class Goblin : Monster
         }
     }
 
+    // 巡逻移动：向随机巡逻点移动，到达后回到等待状态。
     private void UpdatePatrolMove()
     {
         if (CanDetectTarget())
@@ -188,6 +204,7 @@ public class Goblin : Monster
             EnterState(State.PatrolWait);
     }
 
+    // 追击：保持面向目标，进入攻击范围则切换攻击，失去目标则返程。
     private void UpdateChase()
     {
         if (!HasValidTarget() || ShouldReturnHome())
@@ -207,6 +224,7 @@ public class Goblin : Monster
         MoveToward(target.position, chaseSpeed);
     }
 
+    // 攻击：处理前摇伤害、攻击锁定时间和下一次攻击冷却。
     private void UpdateAttack()
     {
         SetLocomotionSpeed01(0f);
@@ -240,6 +258,7 @@ public class Goblin : Monster
             EnterState(State.Attack);
     }
 
+    // 返程：回到出生点；如果返程途中重新发现目标，可再次进入追击。
     private void UpdateReturnHome()
     {
         if (CanDetectTarget() && GetPlanarDistance(transform.position, home) <= leashRadius)
@@ -252,6 +271,7 @@ public class Goblin : Monster
             EnterState(State.PatrolWait);
     }
 
+    // 状态切换入口：集中处理进入某个状态时需要做的一次性初始化。
     private void EnterState(State nextState)
     {
         if (currentState == nextState && nextState != State.Attack)
@@ -279,6 +299,7 @@ public class Goblin : Monster
         }
     }
 
+    // 开始一次攻击，记录计时并触发可选的攻击动画参数。
     private void BeginAttack()
     {
         attackStartedAt = Time.time;
@@ -290,6 +311,7 @@ public class Goblin : Monster
             animator.SetTrigger(attackTriggerParam);
     }
 
+    // 在攻击前摇结束后尝试结算伤害，只命中仍在有效范围内的目标。
     private void ApplyAttackDamage()
     {
         if (!HasValidTarget())
@@ -314,6 +336,7 @@ public class Goblin : Monster
         damageable.TryTakeDamage(damage);
     }
 
+    // 水平移动到指定位置，同时应用竖直速度并同步朝向。
     private bool MoveToward(Vector3 destination, float speed)
     {
         Vector3 position = transform.position;
@@ -336,12 +359,14 @@ public class Goblin : Monster
         return false;
     }
 
+    // 不做水平移动，只应用重力产生的竖直位移。
     private void MoveVerticalOnly()
     {
         if (characterController != null)
             characterController.Move(verticalVelocity * Time.deltaTime);
     }
 
+    // 按给定方向平滑旋转，只改变 Y 轴朝向。
     private void RotateToward(Vector3 direction)
     {
         if (direction.sqrMagnitude < 0.0001f)
@@ -352,6 +377,7 @@ public class Goblin : Monster
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
     }
 
+    // 让自身朝向当前目标。
     private void FaceTarget()
     {
         if (target == null)
@@ -362,6 +388,7 @@ public class Goblin : Monster
         RotateToward(direction);
     }
 
+    // 维护竖直速度，让 CharacterController 持续受到重力影响。
     private void ApplyGravity()
     {
         bool grounded = characterController.isGrounded;
@@ -371,18 +398,21 @@ public class Goblin : Monster
             verticalVelocity.y += gravity * Time.deltaTime;
     }
 
+    // 随机生成下一次巡逻等待结束的时间点。
     private void ScheduleWait()
     {
         float maxWait = Mathf.Max(waitAtPointMin, waitAtPointMax);
         waitUntil = Time.time + Random.Range(waitAtPointMin, maxWait);
     }
 
+    // 在出生点周围随机选择下一个巡逻目标点。
     private void PickPatrolTarget()
     {
         Vector2 randomOffset = Random.insideUnitCircle * wanderRadius;
         patrolTarget = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
     }
 
+    // 如果没有目标，尝试在场景中查找 Player 作为追击目标。
     private void AcquireTarget()
     {
         if (target != null)
@@ -393,6 +423,7 @@ public class Goblin : Monster
             target = player.transform;
     }
 
+    // 判断当前目标是否存在；如果目标是玩家，还要确认玩家没有死亡。
     private bool HasValidTarget()
     {
         if (target == null)
@@ -402,6 +433,7 @@ public class Goblin : Monster
         return player == null || !player.IsDead;
     }
 
+    // 综合距离、视野角和可选视线检测，判断是否能发现目标。
     private bool CanDetectTarget()
     {
         if (!HasValidTarget())
@@ -417,6 +449,7 @@ public class Goblin : Monster
         return !requireLineOfSight || HasLineOfSight();
     }
 
+    // 判断是否应该放弃目标并返回出生点。
     private bool ShouldReturnHome()
     {
         if (!HasValidTarget())
@@ -428,11 +461,13 @@ public class Goblin : Monster
         return distanceToTarget > loseRadius || distanceFromHome > leashRadius;
     }
 
+    // 判断目标是否进入可攻击距离。
     private bool IsTargetInAttackRange()
     {
         return HasValidTarget() && GetPlanarDistance(transform.position, target.position) <= attackRange;
     }
 
+    // 判断目标是否位于自身前方视野角内。
     private bool IsTargetInsideFieldOfView()
     {
         Vector3 toTarget = target.position - transform.position;
@@ -444,6 +479,7 @@ public class Goblin : Monster
         return angle <= fieldOfView * 0.5f;
     }
 
+    // 用射线检测目标之间是否被障碍物遮挡。
     private bool HasLineOfSight()
     {
         Vector3 origin = transform.position + eyeOffset;
@@ -456,6 +492,7 @@ public class Goblin : Monster
         return hit.transform == target || hit.transform.IsChildOf(target);
     }
 
+    // 触发动画前先确认 Animator 里确实存在对应参数。
     private bool HasAnimatorParameter(string parameterName, AnimatorControllerParameterType parameterType)
     {
         if (animator == null)
@@ -470,6 +507,7 @@ public class Goblin : Monster
         return false;
     }
 
+    // 从目标及其父物体上寻找可受伤接口，兼容伤害脚本挂在父节点的情况。
     private static IDamageable FindDamageable(Transform transformToSearch)
     {
         var behaviours = transformToSearch.GetComponentsInParent<MonoBehaviour>();
@@ -483,6 +521,7 @@ public class Goblin : Monster
         return null;
     }
 
+    // 计算忽略高度差的平面距离，用于追击、攻击和范围判断。
     private static float GetPlanarDistance(Vector3 a, Vector3 b)
     {
         a.y = 0f;
@@ -490,12 +529,14 @@ public class Goblin : Monster
         return Vector3.Distance(a, b);
     }
 
+    // 最后锁定旋转，避免模型因物理或动画产生 X/Z 轴倾斜。
     private void LateUpdate()
     {
         Vector3 euler = transform.eulerAngles;
         transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
     }
 
+    // 死亡时停止移动、禁用控制器，并按延迟销毁对象。
     protected override void OnDeath()
     {
         base.OnDeath();
