@@ -27,6 +27,27 @@ public class ItemSO : ScriptableObject
     public List<ItemProperty> propertyList;
     public Sprite icon;
     public GameObject prefab;
+
+    public int GetPropertyValue(ItemPropertyType propertyType)
+    {
+        if (propertyList == null)
+            return 0;
+
+        int total = 0;
+        for (int i = 0; i < propertyList.Count; i++)
+        {
+            ItemProperty property = propertyList[i];
+            if (property != null && property.PropertyType == propertyType)
+                total += property.Value;
+        }
+
+        return total;
+    }
+
+    public bool HasProperty(ItemPropertyType propertyType)
+    {
+        return GetPropertyValue(propertyType) != 0;
+    }
 }
 
 /// <summary>

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -12,6 +13,7 @@ public class Player : MonoBehaviour, IDamageable
     private Animator animator;
     private CharacterController characterController;
     private AttackHitbox attackHitbox;
+    private HitFeedback hitFeedback;
 
     [Header("Stats")]
     [SerializeField] private int maxHp = 100;
@@ -19,15 +21,34 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private int magicResistance = 5;
     [SerializeField] private int attackPower = 10;
     [SerializeField] private float damageInvulnSeconds = 0.3f;
+    [Header("Equipment")]
+    [SerializeField] private ItemSO equippedWeapon;
+    [Header("Hit Feedback")]
+    [SerializeField] private bool enableHitFeedback = false;
+    [SerializeField] private string hitTriggerParam = "Hit";
+    [SerializeField] private string hitBoolParam = "";
+    [SerializeField] private float hitBoolSeconds = 0.08f;
+    [SerializeField] private bool cancelAttackOnHit = true;
+    [SerializeField] private float hitControlLockSeconds = 0.12f;
+    [SerializeField] private float hitKnockbackSpeed = 4.5f;
+    [SerializeField] private float hitKnockbackUpSpeed = 0.8f;
+    [SerializeField] private float hitKnockbackDamping = 22f;
 
     private int currentHp;
     private float lastDamagedAt = -999f;
+    private Vector3 hitKnockbackVelocity;
+    private float controlLockedUntil = -999f;
 
     public int MaxHp => maxHp;
     public int CurrentHp => currentHp;
     public int Armor => armor;
     public int MagicResistance => magicResistance;
-    public int AttackPower => Mathf.Max(0, attackPower);
+    public event Action EquipmentChanged;
+
+    public int BaseAttackPower => Mathf.Max(0, attackPower);
+    public int WeaponAttackBonus => GetWeaponAttackBonus(equippedWeapon);
+    public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus);
+    public ItemSO EquippedWeapon => equippedWeapon;
     public bool IsDead => currentHp <= 0;
     public float Health01 => maxHp <= 0 ? 0f : Mathf.Clamp01((float)currentHp / maxHp);
 
@@ -110,9 +131,54 @@ public class Player : MonoBehaviour, IDamageable
         magicResistance = Mathf.Max(0, magicResistance);
         attackPower = Mathf.Max(0, attackPower);
         damageInvulnSeconds = Mathf.Max(0f, damageInvulnSeconds);
+        hitBoolSeconds = Mathf.Max(0f, hitBoolSeconds);
+        hitControlLockSeconds = Mathf.Max(0f, hitControlLockSeconds);
+        hitKnockbackSpeed = Mathf.Max(0f, hitKnockbackSpeed);
+        hitKnockbackUpSpeed = Mathf.Max(0f, hitKnockbackUpSpeed);
+        hitKnockbackDamping = Mathf.Max(0f, hitKnockbackDamping);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
+    }
+
+    public bool EquipWeapon(ItemSO weapon)
+    {
+        if (!IsValidWeapon(weapon))
+            return false;
+
+        if (equippedWeapon == weapon)
+            return true;
+
+        equippedWeapon = weapon;
+        NotifyEquipmentChanged();
+        return true;
+    }
+
+    public void UnequipWeapon()
+    {
+        if (equippedWeapon == null)
+            return;
+
+        equippedWeapon = null;
+        NotifyEquipmentChanged();
+    }
+
+    private static bool IsValidWeapon(ItemSO item)
+    {
+        return item != null
+            && item.itemType == ItemType.Weapon
+            && GetWeaponAttackBonus(item) > 0;
+    }
+
+    private static int GetWeaponAttackBonus(ItemSO weapon)
+    {
+        return weapon != null ? Mathf.Max(0, weapon.GetPropertyValue(ItemPropertyType.AttackValue)) : 0;
+    }
+
+    private void NotifyEquipmentChanged()
+    {
+        if (EquipmentChanged != null)
+            EquipmentChanged.Invoke();
     }
 
     private void Awake()
@@ -120,6 +186,9 @@ public class Player : MonoBehaviour, IDamageable
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
         attackHitbox = GetComponentInChildren<AttackHitbox>();
+        hitFeedback = GetComponent<HitFeedback>();
+        if (hitFeedback == null)
+            hitFeedback = gameObject.AddComponent<HitFeedback>();
         currentHp = Mathf.Max(1, maxHp);
     }
 
@@ -131,7 +200,7 @@ public class Player : MonoBehaviour, IDamageable
         }
         else
         {
-            var rig = Object.FindObjectOfType<ThirdPersonCameraRig>();
+            var rig = UnityEngine.Object.FindObjectOfType<ThirdPersonCameraRig>();
             if (rig != null)
                 cachedViewTransform = rig.transform;
         }
@@ -147,19 +216,21 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         // 同时兼容 Unity 轴输入和直接按键输入，轴输入优先。
-        float verticalAxis = Input.GetAxisRaw("Vertical");
-        float horizontalAxis = Input.GetAxisRaw("Horizontal");
+        bool inputLocked = Time.time < controlLockedUntil;
 
-        float verticalKey = (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
-        float horizontalKey = (Input.GetKey(KeyCode.D) ? 1f : 0f) + (Input.GetKey(KeyCode.A) ? -1f : 0f);
+        float verticalAxis = inputLocked ? 0f : Input.GetAxisRaw("Vertical");
+        float horizontalAxis = inputLocked ? 0f : Input.GetAxisRaw("Horizontal");
+
+        float verticalKey = inputLocked ? 0f : (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
+        float horizontalKey = inputLocked ? 0f : (Input.GetKey(KeyCode.D) ? 1f : 0f) + (Input.GetKey(KeyCode.A) ? -1f : 0f);
 
         float vertical = Mathf.Abs(verticalAxis) > 0.001f ? verticalAxis : verticalKey;
         float horizontal = Mathf.Abs(horizontalAxis) > 0.001f ? horizontalAxis : horizontalKey;
 
         bool isGrounded = characterController.isGrounded;
 
-        if (Input.GetKeyDown(KeyCode.LeftShift)) runValue = 1f;
-        if (Input.GetKeyUp(KeyCode.LeftShift)) runValue = 0.5f;
+        if (!inputLocked && Input.GetKeyDown(KeyCode.LeftShift)) runValue = 1f;
+        if (!inputLocked && Input.GetKeyUp(KeyCode.LeftShift)) runValue = 0.5f;
 
         bool hasForward = vertical > 0.01f;
         bool hasBack = vertical < -0.01f;
@@ -278,7 +349,7 @@ public class Player : MonoBehaviour, IDamageable
                 velocity.y = -1f;
         }
 
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (!inputLocked && Input.GetKeyDown(KeyCode.Space))
             lastJumpPressedAt = Time.time;
 
         bool hasBufferedJump = Time.time - lastJumpPressedAt <= Mathf.Max(0f, jumpBufferTime);
@@ -296,10 +367,10 @@ public class Player : MonoBehaviour, IDamageable
             velocity.y += gravity * gravityMultiplier * Time.deltaTime;
         }
 
-        if (Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
+        if (!inputLocked && Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
             velocity.y *= Mathf.Clamp01(lowJumpVelocityMultiplier);
 
-        characterController.Move((move + velocity) * Time.deltaTime);
+        characterController.Move((move + velocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
 
         // 连击窗口过期后复位，避免角色一直保持攻击状态。
         if (comboCount != 0 && Time.time > comboExpiresAt)
@@ -309,7 +380,7 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         // 鼠标左键推进三段攻击，并开启一次攻击判定盒。
-        if (Input.GetMouseButtonDown(0))
+        if (!inputLocked && Input.GetMouseButtonDown(0))
         {
             animator.SetBool("IsAttacking", true);
 
@@ -340,6 +411,7 @@ public class Player : MonoBehaviour, IDamageable
 
         lastDamagedAt = Time.time;
         currentHp = Mathf.Max(0, currentHp - appliedDamage);
+        PlayHitFeedback(damage);
 
         if (IsDead)
             OnDeath();
@@ -356,6 +428,68 @@ public class Player : MonoBehaviour, IDamageable
     public void RestoreFullHealth()
     {
         currentHp = Mathf.Max(1, maxHp);
+    }
+
+    private void PlayHitFeedback(DamageInfo damage)
+    {
+        if (!enableHitFeedback)
+            return;
+
+        if (hitFeedback != null)
+            hitFeedback.Play(animator, hitTriggerParam, hitBoolParam, hitBoolSeconds, damage);
+
+        smoothedMove = Vector3.zero;
+        adOnlyStartedAt = -1f;
+        adYawActive = false;
+        wsYawActive = false;
+
+        if (cancelAttackOnHit)
+        {
+            comboCount = 0;
+            if (animator != null)
+                animator.SetBool("IsAttacking", false);
+        }
+
+        controlLockedUntil = Mathf.Max(controlLockedUntil, Time.time + hitControlLockSeconds);
+        ApplyHitKnockback(damage);
+    }
+
+    private void ApplyHitKnockback(DamageInfo damage)
+    {
+        Vector3 direction = damage.direction;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.0001f && damage.source != null)
+        {
+            direction = transform.position - damage.source.transform.position;
+            direction.y = 0f;
+        }
+
+        if (direction.sqrMagnitude < 0.0001f)
+            direction = -transform.forward;
+
+        direction.Normalize();
+        hitKnockbackVelocity = direction * hitKnockbackSpeed;
+
+        if (hitKnockbackUpSpeed > 0f)
+            velocity.y = Mathf.Max(velocity.y, hitKnockbackUpSpeed);
+    }
+
+    private Vector3 ConsumeHitKnockbackVelocity()
+    {
+        Vector3 current = hitKnockbackVelocity;
+        if (hitKnockbackDamping <= 0f)
+        {
+            hitKnockbackVelocity = Vector3.zero;
+            return current;
+        }
+
+        hitKnockbackVelocity = Vector3.MoveTowards(
+            hitKnockbackVelocity,
+            Vector3.zero,
+            hitKnockbackDamping * Time.deltaTime);
+
+        return current;
     }
 
     private int CalculateDamageAfterDefense(DamageInfo damage)
@@ -385,6 +519,7 @@ public class Player : MonoBehaviour, IDamageable
         comboCount = 0;
         velocity = Vector3.zero;
         smoothedMove = Vector3.zero;
+        hitKnockbackVelocity = Vector3.zero;
         StopMovementAnimation();
     }
 

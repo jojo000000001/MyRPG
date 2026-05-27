@@ -2690,6 +2690,7 @@ GameObject:
   - component: {fileID: 4504077672183219117}
   - component: {fileID: 8397252086566957805}
   - component: {fileID: 2910910755739613733}
+  - component: {fileID: 3553849166204315422}
   m_Layer: 0
   m_Name: Goblin
   m_TagString: Untagged
@@ -2750,6 +2751,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHp: 30
   invulnSeconds: 0.15
+  hitTriggerParam: 
   hitBoolParam: HitBool
   hitFlagSeconds: 0.05
   speedFloatParam: Speed
@@ -2767,8 +2769,8 @@ MonoBehaviour:
   waitAtPointMin: 0.75
   waitAtPointMax: 2.5
   arrivalThreshold: 0.2
-  moveSpeed: 2.5
-  chaseSpeed: 3.4
+  moveSpeed: 2
+  chaseSpeed: 3
   returnSpeed: 3.2
   rotateSpeed: 540
   gravity: -10
@@ -2782,6 +2784,10 @@ MonoBehaviour:
   attackLockSeconds: 0.55
   attackTriggerParam: Attack
   destroyAfterDeathSeconds: 0.5
+  hitStaggerSeconds: 0.18
+  hitKnockbackSpeed: 4
+  hitKnockbackUpSpeed: 0.45
+  hitKnockbackDamping: 18
   currentState: 0
 --- !u!136 &4504077672183219117
 CapsuleCollider:
@@ -2856,6 +2862,31 @@ MonoBehaviour:
   backgroundColor: {r: 0.18, g: 0.04, b: 0.04, a: 0.85}
   highHealthColor: {r: 0.2, g: 0.85, b: 0.25, a: 0.95}
   lowHealthColor: {r: 0.95, g: 0.12, b: 0.08, a: 0.95}
+--- !u!114 &3553849166204315422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8774068745279538911}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc1596db4b3de95458c85da57e26d14d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  flashEnabled: 1
+  flashColor: {r: 1, g: 0.18, b: 0.12, a: 1}
+  flashSeconds: 0.16
+  flashPulses: 2
+  renderRoot: {fileID: 0}
+  scalePunchEnabled: 1
+  scaleTarget: {fileID: 0}
+  scalePunchAmount: 0.08
+  scalePunchSeconds: 0.12
+  recoilEnabled: 1
+  recoilTarget: {fileID: 0}
+  recoilDistance: 0.1
+  recoilSeconds: 0.14
 --- !u!1 &8784873566950656971
 GameObject:
   m_ObjectHideFlags: 0

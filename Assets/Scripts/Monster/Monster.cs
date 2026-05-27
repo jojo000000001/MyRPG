@@ -11,6 +11,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
     [SerializeField] protected float invulnSeconds = 0.15f;
 
     [Header("Animation")]
+    [SerializeField] private string hitTriggerParam = "";
     [SerializeField] private string hitBoolParam = "HitBool";
     [SerializeField] private float hitFlagSeconds = 0.05f;
     [Tooltip("Animator float for locomotion: 0 = idle, 1 = run.")]
@@ -19,6 +20,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
     protected int hp;
     protected float lastHitTime = -999f;
     protected Animator animator;
+    private HitFeedback hitFeedback;
 
     public int CurrentHp => hp;
     public int MaxHp => maxHp;
@@ -28,6 +30,9 @@ public abstract class Monster : MonoBehaviour, IDamageable
     {
         hp = Mathf.Max(1, maxHp);
         animator = GetComponent<Animator>();
+        hitFeedback = GetComponent<HitFeedback>();
+        if (hitFeedback == null)
+            hitFeedback = gameObject.AddComponent<HitFeedback>();
     }
 
     /// <summary>
@@ -52,7 +57,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
         lastHitTime = Time.time;
         hp = Mathf.Max(0, hp - appliedDamage);
 
-        PlayHitFeedback();
+        PlayHitFeedback(damage);
         OnDamaged(appliedDamage);
 
         if (IsDead)
@@ -77,17 +82,9 @@ public abstract class Monster : MonoBehaviour, IDamageable
     }
 
     // 用短暂布尔参数驱动受击动画，随后自动复位。
-    private void PlayHitFeedback()
+private void PlayHitFeedback(DamageInfo damage)
     {
-        if (!animator) return;
-
-        animator.SetBool(hitBoolParam, true);
-        CancelInvoke(nameof(ResetHitFlag));
-        Invoke(nameof(ResetHitFlag), hitFlagSeconds);
-    }
-
-    private void ResetHitFlag()
-    {
-        if (animator) animator.SetBool(hitBoolParam, false);
+        if (hitFeedback != null)
+            hitFeedback.Play(animator, hitTriggerParam, hitBoolParam, hitFlagSeconds, damage);
     }
 }

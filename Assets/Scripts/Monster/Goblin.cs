@@ -48,6 +48,20 @@ public class Goblin : Monster
     [Header("Death")]
     [SerializeField] private float destroyAfterDeathSeconds = 0.5f;
 
+    [Header("Drops")]
+    [SerializeField, Range(0f, 1f)] private float dropChance = 1f;
+    [SerializeField, Range(0f, 1f)] private float weaponDropChance = 0.15f;
+    [SerializeField] private string consumableDropResourcePath = "Drops/Consumables";
+    [SerializeField] private string weaponDropResourcePath = "Drops/Weapons";
+    [SerializeField] private Vector3 dropOffset = new Vector3(0f, 0.15f, 0f);
+    [SerializeField] private float dropScatterRadius = 0.35f;
+
+    [Header("Hit Reaction")]
+    [SerializeField] private float hitStaggerSeconds = 0.12f;
+    [SerializeField] private float hitKnockbackSpeed = 2.2f;
+    [SerializeField] private float hitKnockbackUpSpeed = 0.25f;
+    [SerializeField] private float hitKnockbackDamping = 14f;
+
     // 状态机的全部状态；Update 会根据 currentState 分发到对应行为。
     private enum State
     {
@@ -71,6 +85,9 @@ public class Goblin : Monster
     private float attackStartedAt = -999f;
     private float nextAttackAt = -999f;
     private bool attackDamageApplied;
+    private Vector3 hitKnockbackVelocity;
+    private float hitStaggerUntil = -999f;
+    private bool lootDropped;
 
     // 对外暴露当前状态名称，方便 UI、调试面板或测试读取。
     public string CurrentStateName => currentState.ToString();
@@ -120,6 +137,13 @@ public class Goblin : Monster
         attackWindupSeconds = Mathf.Max(0f, attackWindupSeconds);
         attackLockSeconds = Mathf.Max(attackWindupSeconds, attackLockSeconds);
         destroyAfterDeathSeconds = Mathf.Max(0f, destroyAfterDeathSeconds);
+        dropChance = Mathf.Clamp01(dropChance);
+        weaponDropChance = Mathf.Clamp01(weaponDropChance);
+        dropScatterRadius = Mathf.Max(0f, dropScatterRadius);
+        hitStaggerSeconds = Mathf.Max(0f, hitStaggerSeconds);
+        hitKnockbackSpeed = Mathf.Max(0f, hitKnockbackSpeed);
+        hitKnockbackUpSpeed = Mathf.Max(0f, hitKnockbackUpSpeed);
+        hitKnockbackDamping = Mathf.Max(0f, hitKnockbackDamping);
     }
 
     // 主循环：先处理死亡和基础更新，再按当前状态执行对应行为。
@@ -133,6 +157,14 @@ public class Goblin : Monster
 
         AcquireTarget();
         ApplyGravity();
+
+        if (Time.time < hitStaggerUntil)
+        {
+            SetLocomotionSpeed01(0f);
+            FaceTarget();
+            MoveVerticalOnly();
+            return;
+        }
 
         switch (currentState)
         {
@@ -167,6 +199,7 @@ public class Goblin : Monster
         if (damage.source != null)
             target = damage.source.transform;
 
+        ApplyHitReaction(damage);
         EnterState(State.Chase);
         return true;
     }
@@ -355,7 +388,7 @@ public class Goblin : Monster
         RotateToward(direction);
 
         SetLocomotionSpeed01(speed > 0f ? 1f : 0f);
-        characterController.Move((direction * speed + verticalVelocity) * Time.deltaTime);
+        characterController.Move((direction * speed + verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
         return false;
     }
 
@@ -363,7 +396,7 @@ public class Goblin : Monster
     private void MoveVerticalOnly()
     {
         if (characterController != null)
-            characterController.Move(verticalVelocity * Time.deltaTime);
+            characterController.Move((verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
     }
 
     // 按给定方向平滑旋转，只改变 Y 轴朝向。
@@ -396,6 +429,48 @@ public class Goblin : Monster
             verticalVelocity.y = -1f;
         else
             verticalVelocity.y += gravity * Time.deltaTime;
+    }
+
+    // 受击时打断当前动作，应用短暂硬直和击退速度。
+    private void ApplyHitReaction(DamageInfo damage)
+    {
+        attackDamageApplied = true;
+        hitStaggerUntil = Mathf.Max(hitStaggerUntil, Time.time + hitStaggerSeconds);
+
+        Vector3 direction = damage.direction;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.0001f && damage.source != null)
+        {
+            direction = transform.position - damage.source.transform.position;
+            direction.y = 0f;
+        }
+
+        if (direction.sqrMagnitude < 0.0001f)
+            direction = -transform.forward;
+
+        direction.Normalize();
+        hitKnockbackVelocity = direction * hitKnockbackSpeed;
+
+        if (hitKnockbackUpSpeed > 0f)
+            verticalVelocity.y = Mathf.Max(verticalVelocity.y, hitKnockbackUpSpeed);
+    }
+
+    private Vector3 ConsumeHitKnockbackVelocity()
+    {
+        Vector3 current = hitKnockbackVelocity;
+        if (hitKnockbackDamping <= 0f)
+        {
+            hitKnockbackVelocity = Vector3.zero;
+            return current;
+        }
+
+        hitKnockbackVelocity = Vector3.MoveTowards(
+            hitKnockbackVelocity,
+            Vector3.zero,
+            hitKnockbackDamping * Time.deltaTime);
+
+        return current;
     }
 
     // 随机生成下一次巡逻等待结束的时间点。
@@ -542,10 +617,54 @@ public class Goblin : Monster
         base.OnDeath();
         currentState = State.Dead;
         verticalVelocity = Vector3.zero;
+        hitKnockbackVelocity = Vector3.zero;
+        DropLoot();
 
         if (characterController != null)
             characterController.enabled = false;
 
         Destroy(gameObject, destroyAfterDeathSeconds);
+    }
+
+    private void DropLoot()
+    {
+        if (lootDropped)
+            return;
+
+        lootDropped = true;
+
+        if (Random.value > dropChance)
+            return;
+
+        bool preferWeapon = Random.value < weaponDropChance;
+        GameObject dropPrefab = PickDropPrefab(preferWeapon);
+        if (dropPrefab == null)
+            return;
+
+        Vector2 scatter = Random.insideUnitCircle * dropScatterRadius;
+        Vector3 dropPosition = transform.position + dropOffset + new Vector3(scatter.x, 0f, scatter.y);
+        Quaternion dropRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        Instantiate(dropPrefab, dropPosition, dropRotation);
+    }
+
+    private GameObject PickDropPrefab(bool preferWeapon)
+    {
+        GameObject[] primaryPool = LoadDropPool(preferWeapon ? weaponDropResourcePath : consumableDropResourcePath);
+        if (primaryPool.Length > 0)
+            return primaryPool[Random.Range(0, primaryPool.Length)];
+
+        GameObject[] fallbackPool = LoadDropPool(preferWeapon ? consumableDropResourcePath : weaponDropResourcePath);
+        if (fallbackPool.Length > 0)
+            return fallbackPool[Random.Range(0, fallbackPool.Length)];
+
+        return null;
+    }
+
+    private static GameObject[] LoadDropPool(string resourcePath)
+    {
+        if (string.IsNullOrEmpty(resourcePath))
+            return new GameObject[0];
+
+        return Resources.LoadAll<GameObject>(resourcePath);
     }
 }

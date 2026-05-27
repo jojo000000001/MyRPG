@@ -2,13 +2,18 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 玩家左上角 HUD 血条：运行时自动创建屏幕空间 Canvas，并跟随绑定的 Player 血量平滑更新。
+/// Player HUD health bar built from the Kenney RPG UI bar sprites.
 /// </summary>
 public sealed class PlayerHealthBar : MonoBehaviour
 {
     private const string RootName = "PlayerHealthBarRoot";
-    private const string FillAreaName = "FillArea";
+    private const string BackName = "Back";
+    private const string FillMaskName = "FillMask";
     private const string FillName = "Fill";
+    private const string LeftName = "Left";
+    private const string MidName = "Mid";
+    private const string RightName = "Right";
+    private const string ResourceRoot = "UI/HealthBar/";
 
     [Header("Target")]
     [SerializeField] private Player player;
@@ -16,28 +21,27 @@ public sealed class PlayerHealthBar : MonoBehaviour
     [Header("Layout")]
     [SerializeField] private Vector2 anchoredPosition = new Vector2(24f, -24f);
     [SerializeField] private Vector2 barSize = new Vector2(280f, 28f);
-    [SerializeField] private float borderPixels = 3f;
+    [SerializeField] private float capWidth = 14f;
     [SerializeField] private int sortingOrder = 100;
 
     [Header("Display")]
     [SerializeField] private float smoothSpeed = 14f;
 
-    [Header("Color")]
-    [SerializeField] private Color frameColor = new Color(0.03f, 0.025f, 0.02f, 0.92f);
-    [SerializeField] private Color backgroundColor = new Color(0.18f, 0.035f, 0.03f, 0.88f);
-    [SerializeField] private Color highHealthColor = new Color(0.22f, 0.82f, 0.30f, 0.96f);
-    [SerializeField] private Color lowHealthColor = new Color(0.92f, 0.12f, 0.08f, 0.96f);
-
     private Canvas canvas;
     private CanvasScaler canvasScaler;
     private GraphicRaycaster graphicRaycaster;
     private RectTransform rootRect;
-    private RectTransform fillAreaRect;
-    private RectTransform fillRect;
-    private Image rootImage;
-    private Image fillAreaImage;
-    private Image fillImage;
+    private RectTransform fillMaskRect;
+    private RectTransform backMidRect;
+    private RectTransform fillMidRect;
+    private Image backLeftImage;
+    private Image backMidImage;
+    private Image backRightImage;
+    private Image fillLeftImage;
+    private Image fillMidImage;
+    private Image fillRightImage;
     private float displayedHealth01 = 1f;
+    private bool usingGreenFill;
 
     private void Start()
     {
@@ -49,7 +53,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
     {
         barSize.x = Mathf.Max(1f, barSize.x);
         barSize.y = Mathf.Max(1f, barSize.y);
-        borderPixels = Mathf.Max(0f, borderPixels);
+        capWidth = Mathf.Clamp(capWidth, 1f, barSize.x * 0.45f);
         smoothSpeed = Mathf.Max(0f, smoothSpeed);
     }
 
@@ -90,38 +94,71 @@ public sealed class PlayerHealthBar : MonoBehaviour
         {
             Transform existingRoot = transform.Find(RootName);
             rootRect = existingRoot as RectTransform;
-            if (rootRect != null)
-                rootImage = rootRect.GetComponent<Image>();
         }
+
+        if (rootRect != null && !HasExpectedBarParts())
+            DestroyExistingRoot();
 
         if (rootRect == null)
             CreateBar();
 
         CacheBarParts();
         ApplyLayout();
+        ApplySprites();
+    }
+
+    private bool HasExpectedBarParts()
+    {
+        return rootRect.Find(BackName + "/" + LeftName) != null &&
+            rootRect.Find(BackName + "/" + MidName) != null &&
+            rootRect.Find(BackName + "/" + RightName) != null &&
+            rootRect.Find(FillMaskName + "/" + FillName + "/" + LeftName) != null &&
+            rootRect.Find(FillMaskName + "/" + FillName + "/" + MidName) != null &&
+            rootRect.Find(FillMaskName + "/" + FillName + "/" + RightName) != null;
+    }
+
+    private void DestroyExistingRoot()
+    {
+        GameObject oldRoot = rootRect.gameObject;
+        rootRect = null;
+        fillMaskRect = null;
+
+        if (Application.isPlaying)
+            Destroy(oldRoot);
+        else
+            DestroyImmediate(oldRoot);
     }
 
     private void CreateBar()
     {
-        GameObject root = new GameObject(RootName, typeof(RectTransform), typeof(Image));
+        GameObject root = new GameObject(RootName, typeof(RectTransform));
         root.transform.SetParent(transform, false);
         rootRect = root.GetComponent<RectTransform>();
-        rootImage = root.GetComponent<Image>();
 
-        GameObject fillArea = new GameObject(FillAreaName, typeof(RectTransform), typeof(Image));
-        fillArea.transform.SetParent(root.transform, false);
-        fillAreaRect = fillArea.GetComponent<RectTransform>();
-        fillAreaImage = fillArea.GetComponent<Image>();
+        GameObject back = new GameObject(BackName, typeof(RectTransform));
+        back.transform.SetParent(root.transform, false);
+        CreateSegment(back.transform, LeftName);
+        CreateSegment(back.transform, MidName);
+        CreateSegment(back.transform, RightName);
 
-        GameObject fill = new GameObject(FillName, typeof(RectTransform), typeof(Image));
-        fill.transform.SetParent(fillArea.transform, false);
-        fillRect = fill.GetComponent<RectTransform>();
-        fillImage = fill.GetComponent<Image>();
+        GameObject fillMask = new GameObject(FillMaskName, typeof(RectTransform), typeof(RectMask2D));
+        fillMask.transform.SetParent(root.transform, false);
+        fillMaskRect = fillMask.GetComponent<RectTransform>();
 
-        fillRect.anchorMin = new Vector2(0f, 0f);
-        fillRect.anchorMax = new Vector2(0f, 1f);
-        fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.anchoredPosition = Vector2.zero;
+        GameObject fill = new GameObject(FillName, typeof(RectTransform));
+        fill.transform.SetParent(fillMask.transform, false);
+        CreateSegment(fill.transform, LeftName);
+        CreateSegment(fill.transform, MidName);
+        CreateSegment(fill.transform, RightName);
+    }
+
+    private static Image CreateSegment(Transform parent, string name)
+    {
+        GameObject segment = new GameObject(name, typeof(RectTransform), typeof(Image));
+        segment.transform.SetParent(parent, false);
+        Image image = segment.GetComponent<Image>();
+        image.raycastTarget = false;
+        return image;
     }
 
     private void CacheBarParts()
@@ -129,27 +166,30 @@ public sealed class PlayerHealthBar : MonoBehaviour
         if (rootRect == null)
             return;
 
-        rootImage = rootRect.GetComponent<Image>();
+        Transform back = rootRect.Find(BackName);
+        Transform fillMask = rootRect.Find(FillMaskName);
+        Transform fill = fillMask != null ? fillMask.Find(FillName) : null;
 
-        if (fillAreaRect == null)
-        {
-            Transform fillArea = rootRect.Find(FillAreaName);
-            fillAreaRect = fillArea as RectTransform;
-        }
+        fillMaskRect = fillMask as RectTransform;
 
-        if (fillAreaRect != null)
-        {
-            fillAreaImage = fillAreaRect.GetComponent<Image>();
+        backLeftImage = GetSegment(back, LeftName);
+        backMidImage = GetSegment(back, MidName);
+        backRightImage = GetSegment(back, RightName);
+        fillLeftImage = GetSegment(fill, LeftName);
+        fillMidImage = GetSegment(fill, MidName);
+        fillRightImage = GetSegment(fill, RightName);
 
-            if (fillRect == null)
-            {
-                Transform fill = fillAreaRect.Find(FillName);
-                fillRect = fill as RectTransform;
-            }
-        }
+        backMidRect = backMidImage != null ? backMidImage.rectTransform : null;
+        fillMidRect = fillMidImage != null ? fillMidImage.rectTransform : null;
+    }
 
-        if (fillRect != null)
-            fillImage = fillRect.GetComponent<Image>();
+    private static Image GetSegment(Transform parent, string name)
+    {
+        if (parent == null)
+            return null;
+
+        Transform child = parent.Find(name);
+        return child != null ? child.GetComponent<Image>() : null;
     }
 
     private void ApplyLayout()
@@ -163,18 +203,90 @@ public sealed class PlayerHealthBar : MonoBehaviour
         rootRect.anchoredPosition = anchoredPosition;
         rootRect.sizeDelta = barSize;
 
-        if (rootImage != null)
-            rootImage.color = frameColor;
+        LayoutGroup(rootRect.Find(BackName) as RectTransform, barSize.x);
 
-        if (fillAreaRect != null)
+        if (fillMaskRect != null)
         {
-            StretchToParent(fillAreaRect);
-            fillAreaRect.offsetMin = new Vector2(borderPixels, borderPixels);
-            fillAreaRect.offsetMax = new Vector2(-borderPixels, -borderPixels);
+            fillMaskRect.anchorMin = new Vector2(0f, 0f);
+            fillMaskRect.anchorMax = new Vector2(0f, 1f);
+            fillMaskRect.pivot = new Vector2(0f, 0.5f);
+            fillMaskRect.anchoredPosition = Vector2.zero;
+            fillMaskRect.sizeDelta = new Vector2(barSize.x, 0f);
         }
 
-        if (fillAreaImage != null)
-            fillAreaImage.color = backgroundColor;
+        LayoutGroup(fillMaskRect != null ? fillMaskRect.Find(FillName) as RectTransform : null, barSize.x);
+    }
+
+    private void LayoutGroup(RectTransform groupRect, float width)
+    {
+        if (groupRect == null)
+            return;
+
+        StretchToParent(groupRect);
+        LayoutSegment(groupRect.Find(LeftName) as RectTransform, 0f, 0f, capWidth);
+        LayoutSegment(groupRect.Find(MidName) as RectTransform, capWidth, 0f, Mathf.Max(0f, width - capWidth * 2f));
+        LayoutSegment(groupRect.Find(RightName) as RectTransform, width - capWidth, 0f, capWidth);
+    }
+
+    private void LayoutSegment(RectTransform rect, float x, float y, float width)
+    {
+        if (rect == null)
+            return;
+
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.anchoredPosition = new Vector2(x, y);
+        rect.sizeDelta = new Vector2(width, 0f);
+    }
+
+    private void ApplySprites()
+    {
+        ApplyImage(backLeftImage, "barBack_horizontalLeft");
+        ApplyImage(backMidImage, "barBack_horizontalMid");
+        ApplyImage(backRightImage, "barBack_horizontalRight");
+        ApplyFillSprites(displayedHealth01 >= 0.999f);
+    }
+
+    private void ApplyFillSprites(bool useGreen)
+    {
+        if (useGreen == usingGreenFill && fillLeftImage != null && fillLeftImage.sprite != null)
+            return;
+
+        string colorPrefix = useGreen ? "barGreen" : "barRed";
+        ApplyImage(fillLeftImage, colorPrefix + "_horizontalLeft", true);
+        ApplyImage(fillMidImage, colorPrefix + "_horizontalMid", true);
+        ApplyImage(fillRightImage, colorPrefix + "_horizontalRight", true);
+        usingGreenFill = useGreen;
+    }
+
+    private static void ApplyImage(Image image, string resourceName)
+    {
+        ApplyImage(image, resourceName, false);
+    }
+
+    private static void ApplyImage(Image image, string resourceName, bool forceSprite)
+    {
+        if (image == null)
+            return;
+
+        if (forceSprite || image.sprite == null)
+            image.sprite = LoadSprite(resourceName);
+
+        image.type = Image.Type.Simple;
+        image.color = Color.white;
+        image.raycastTarget = false;
+    }
+
+    private static Sprite LoadSprite(string resourceName)
+    {
+        Texture2D texture = Resources.Load<Texture2D>(ResourceRoot + resourceName);
+        if (texture == null)
+            return null;
+
+        Rect rect = new Rect(0f, 0f, texture.width, texture.height);
+        Vector2 pivot = new Vector2(0.5f, 0.5f);
+        return Sprite.Create(texture, rect, pivot, 100f, 0, SpriteMeshType.FullRect, Vector4.zero);
     }
 
     private void UpdateImmediate()
@@ -193,13 +305,12 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void UpdateFill(float health01)
     {
-        if (fillAreaRect == null || fillRect == null || fillImage == null)
+        if (fillMaskRect == null)
             return;
 
-        float width = Mathf.Max(0f, fillAreaRect.rect.width);
         float clampedHealth = Mathf.Clamp01(health01);
-        fillRect.sizeDelta = new Vector2(width * clampedHealth, 0f);
-        fillImage.color = Color.Lerp(lowHealthColor, highHealthColor, clampedHealth);
+        ApplyFillSprites(clampedHealth >= 0.5f);
+        fillMaskRect.sizeDelta = new Vector2(barSize.x * clampedHealth, 0f);
     }
 
     private static void StretchToParent(RectTransform rect)
@@ -211,5 +322,3 @@ public sealed class PlayerHealthBar : MonoBehaviour
         rect.offsetMax = Vector2.zero;
     }
 }
-
-
