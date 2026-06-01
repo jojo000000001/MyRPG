@@ -149,7 +149,20 @@ public static class InventoryUIPrefabBuilder
         serializedSpawner.FindProperty("spawnOnAwake").boolValue = true;
         serializedSpawner.ApplyModifiedPropertiesWithoutUndo();
 
+        PlayerStatPanel statPanel = hud.GetComponent<PlayerStatPanel>();
+        if (statPanel == null)
+            statPanel = hud.AddComponent<PlayerStatPanel>();
+
+        SerializedObject serializedStats = new SerializedObject(statPanel);
+        serializedStats.FindProperty("player").objectReferenceValue = player;
+        serializedStats.FindProperty("panelSprite").objectReferenceValue = LoadSprite(PanelSpritePath);
+        serializedStats.FindProperty("rowSprite").objectReferenceValue = LoadSprite(SlotSpritePath);
+        serializedStats.FindProperty("followInventoryVisibility").boolValue = true;
+        serializedStats.FindProperty("gapFromInventory").floatValue = 18f;
+        serializedStats.ApplyModifiedPropertiesWithoutUndo();
+
         EditorUtility.SetDirty(spawner);
+        EditorUtility.SetDirty(statPanel);
         EditorUtility.SetDirty(hud);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
@@ -297,6 +310,7 @@ public static class InventoryUIPrefabBuilder
             return false;
 
         InventoryUIRuntimeSpawner spawner = hud.GetComponent<InventoryUIRuntimeSpawner>();
-        return spawner != null && hud.transform.Find("InventoryUIRoot") == null;
+        PlayerStatPanel statPanel = hud.GetComponent<PlayerStatPanel>();
+        return spawner != null && statPanel != null && hud.transform.Find("InventoryUIRoot") == null;
     }
 }

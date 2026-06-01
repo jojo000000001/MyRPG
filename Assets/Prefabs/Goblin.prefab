@@ -2749,7 +2749,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f9dee2aea38b88944acba9511760285a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHp: 30
+  maxHp: 120
   invulnSeconds: 0.15
   hitTriggerParam: 
   hitBoolParam: HitBool
@@ -2779,11 +2779,18 @@ MonoBehaviour:
   attackDamageType: 0
   attackRange: 1.35
   attackHitGraceRange: 0.35
+  attackArcDegrees: 120
   attackCooldown: 1.25
   attackWindupSeconds: 0.22
   attackLockSeconds: 0.55
   attackTriggerParam: Attack
   destroyAfterDeathSeconds: 0.5
+  dropChance: 1
+  weaponDropChance: 0.15
+  consumableDropResourcePath: Drops/Consumables
+  weaponDropResourcePath: Drops/Weapons
+  dropOffset: {x: 0, y: 0.15, z: 0}
+  dropScatterRadius: 0.35
   hitStaggerSeconds: 0.18
   hitKnockbackSpeed: 4
   hitKnockbackUpSpeed: 0.45

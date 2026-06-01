@@ -888,11 +888,11 @@ Transform:
   m_GameObject: {fileID: 3102819877592043563}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: 1}
-  m_LocalScale: {x: 0.4, y: 0.4, z: 0.6}
+  m_LocalPosition: {x: 0, y: 0.55, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 6532088156639305944}
+  m_Father: {fileID: 7396987870306329126}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &2232546482660746894
 BoxCollider:
@@ -913,7 +913,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1.5}
+  m_Size: {x: 0.55, y: 1.55, z: 0.25}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &5599993794612511274
 Rigidbody:
@@ -964,6 +964,9 @@ MonoBehaviour:
   cameraShakeStrength: 0.075
   cameraShakeFrequency: 38
   activeSeconds: 0.12
+  closeAfterFirstHit: 0
+  requireForwardArc: 1
+  forwardArcDegrees: 150
 --- !u!1 &3159527950620296112
 GameObject:
   m_ObjectHideFlags: 0
@@ -1415,6 +1418,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1558270050092203162}
+  - {fileID: 1295594340899711043}
   m_Father: {fileID: 5470961582967875301}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4444925012537847869
@@ -2775,7 +2779,6 @@ Transform:
   - {fileID: 1258496906473510870}
   - {fileID: 813063529828867683}
   - {fileID: 3204539635895144122}
-  - {fileID: 1295594340899711043}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 352.3, z: 0}
 --- !u!95 &7623617726180109855
@@ -2852,6 +2855,9 @@ MonoBehaviour:
   hitKnockbackSpeed: 4.5
   hitKnockbackUpSpeed: 0.8
   hitKnockbackDamping: 22
+  useFallbackHitbox: 1
+  fallbackHitboxDelay: 0.2
+  fallbackHitboxSeconds: 0.12
   moveSpeed: 3
   rotateSpeed: 8
   gravity: -10

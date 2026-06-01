@@ -1562,6 +1562,7 @@ GameObject:
   - component: {fileID: 1706018193}
   - component: {fileID: 1706018192}
   - component: {fileID: 1706018197}
+  - component: {fileID: 1706018198}
   m_Layer: 0
   m_Name: PlayerHUD
   m_TagString: Untagged
@@ -1686,6 +1687,28 @@ MonoBehaviour:
   player: {fileID: 6781608451375289610}
   inventory: {fileID: 1607345204}
   spawnOnAwake: 1
+--- !u!114 &1706018198
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1706018191}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69520386d93c4924091cbbbb535d197b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 6781608451375289610}
+  panelSprite: {fileID: 21300000, guid: 1299379e11ce50f46b374b229439458a, type: 3}
+  rowSprite: {fileID: 21300000, guid: 2ab1e6d6ca294184eb20c4ae5e7e6660, type: 3}
+  panelSize: {x: 320, y: 340}
+  gapFromInventory: 18
+  verticalOffset: 0
+  padding: 26
+  rowHeight: 58
+  rowSpacing: 10
+  followInventoryVisibility: 1
 --- !u!1001 &1822657287
 PrefabInstance:
   m_ObjectHideFlags: 0

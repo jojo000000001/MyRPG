@@ -39,6 +39,7 @@ public class Goblin : Monster
     [SerializeField] private DamageType attackDamageType = DamageType.Physical;
     [SerializeField] private float attackRange = 1.35f;
     [SerializeField] private float attackHitGraceRange = 0.35f;
+    [SerializeField, Range(1f, 360f)] private float attackArcDegrees = 120f;
     [SerializeField] private float attackCooldown = 1.25f;
     [SerializeField] private float attackWindupSeconds = 0.25f;
     [SerializeField] private float attackLockSeconds = 0.55f;
@@ -133,6 +134,7 @@ public class Goblin : Monster
         attackDamage = Mathf.Max(0, attackDamage);
         attackRange = Mathf.Max(0.1f, attackRange);
         attackHitGraceRange = Mathf.Max(0f, attackHitGraceRange);
+        attackArcDegrees = Mathf.Clamp(attackArcDegrees, 1f, 360f);
         attackCooldown = Mathf.Max(0.05f, attackCooldown);
         attackWindupSeconds = Mathf.Max(0f, attackWindupSeconds);
         attackLockSeconds = Mathf.Max(attackWindupSeconds, attackLockSeconds);
@@ -350,22 +352,26 @@ public class Goblin : Monster
         if (!HasValidTarget())
             return;
 
+        Vector3 direction = target.position - transform.position;
+        direction.y = 0f;
+
         float hitRange = attackRange + attackHitGraceRange;
-        if (GetPlanarDistance(transform.position, target.position) > hitRange)
+        if (direction.magnitude > hitRange)
+            return;
+
+        if (!IsInsideAttackArc(direction))
             return;
 
         IDamageable damageable = FindDamageable(target);
         if (damageable == null)
             return;
 
-        Vector3 direction = target.position - transform.position;
-        direction.y = 0f;
         if (direction.sqrMagnitude > 0.0001f)
             direction.Normalize();
         else
             direction = transform.forward;
 
-        var damage = new DamageInfo(attackDamage, gameObject, target.position, direction, attackDamageType);
+        DamageInfo damage = new DamageInfo(attackDamage, gameObject, target.position, direction, attackDamageType);
         damageable.TryTakeDamage(damage);
     }
 
@@ -541,6 +547,25 @@ public class Goblin : Monster
     {
         return HasValidTarget() && GetPlanarDistance(transform.position, target.position) <= attackRange;
     }
+
+    private bool IsInsideAttackArc(Vector3 directionToTarget)
+    {
+        if (attackArcDegrees >= 359f)
+            return true;
+
+        directionToTarget.y = 0f;
+        if (directionToTarget.sqrMagnitude < 0.0001f)
+            return true;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f)
+            return true;
+
+        float angle = Vector3.Angle(forward, directionToTarget);
+        return angle <= attackArcDegrees * 0.5f;
+    }
+
 
     // 判断目标是否位于自身前方视野角内。
     private bool IsTargetInsideFieldOfView()

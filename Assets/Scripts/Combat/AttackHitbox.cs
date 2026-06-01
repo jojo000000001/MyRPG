@@ -1,12 +1,9 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 攻击判定盒：只在攻击窗口内短暂开启触发器，命中 Hurtbox 后传递 DamageInfo。
-/// </summary>
-[RequireComponent(typeof(Collider))]
-/// <summary>
-/// 攻击判定盒：只在攻击窗口内短暂开启触发器，命中 Hurtbox 后传递 DamageInfo。
+/// Attack hitbox: opens only during attack active frames, then forwards DamageInfo to Hurtbox.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class AttackHitbox : MonoBehaviour
@@ -23,12 +20,21 @@ public class AttackHitbox : MonoBehaviour
     [SerializeField] private float cameraShakeSeconds = 0.12f;
     [SerializeField] private float cameraShakeStrength = 0.075f;
     [SerializeField] private float cameraShakeFrequency = 38f;
-[SerializeField] private float activeSeconds = 0.12f;
+    [Header("Timing")]
+    [SerializeField] private float activeSeconds = 0.12f;
+    [SerializeField] private bool closeAfterFirstHit;
+
+    [Header("Facing")]
+    [SerializeField] private bool requireForwardArc = true;
+    [SerializeField, Range(1f, 360f)] private float forwardArcDegrees = 150f;
 
     // 运行时缓存触发器，并用 active 控制本次攻击是否还能命中。
     private Collider col;
     private bool active;
 
+    private readonly HashSet<Hurtbox> hitTargets = new HashSet<Hurtbox>();
+    private Coroutine disableRoutine;
+    private bool impactPlayedThisSwing;
     private void Awake()
     {
         col = GetComponent<Collider>();
@@ -36,10 +42,11 @@ public class AttackHitbox : MonoBehaviour
         col.enabled = false;
     }
 
-private void OnValidate()
+    private void OnValidate()
     {
         damage = Mathf.Max(0, damage);
         activeSeconds = Mathf.Max(0.01f, activeSeconds);
+        forwardArcDegrees = Mathf.Clamp(forwardArcDegrees, 1f, 360f);
         hitStopSeconds = Mathf.Max(0f, hitStopSeconds);
         hitStopTimeScale = Mathf.Clamp(hitStopTimeScale, 0.01f, 1f);
         cameraShakeSeconds = Mathf.Max(0f, cameraShakeSeconds);
@@ -53,52 +60,94 @@ private void OnValidate()
     /// </summary>
     public void ActivateOnce()
     {
-        if (active) return;
+        ActivateForSeconds(activeSeconds);
+    }
+
+    public void ActivateForSeconds(float seconds)
+    {
+        OpenHitbox();
+
+        if (disableRoutine != null)
+            StopCoroutine(disableRoutine);
+
+        disableRoutine = StartCoroutine(DisableAfter(Mathf.Max(0.01f, seconds)));
+    }
+
+    public void OpenHitbox()
+    {
+        if (col == null)
+            col = GetComponent<Collider>();
+
+        if (disableRoutine != null)
+        {
+            StopCoroutine(disableRoutine);
+            disableRoutine = null;
+        }
 
         active = true;
+        impactPlayedThisSwing = false;
+        hitTargets.Clear();
         col.enabled = true;
-        StartCoroutine(DisableAfter(activeSeconds));
     }
+
+    public void CloseHitbox()
+    {
+        if (disableRoutine != null)
+        {
+            StopCoroutine(disableRoutine);
+            disableRoutine = null;
+        }
+
+        SetColliderActive(false);
+    }
+
 
     private IEnumerator DisableAfter(float seconds)
     {
         yield return new WaitForSeconds(seconds);
-        col.enabled = false;
-        active = false;
+        disableRoutine = null;
+        SetColliderActive(false);
     }
 
+    private void SetColliderActive(bool enabled)
+    {
+        if (col == null)
+            col = GetComponent<Collider>();
+
+        active = enabled;
+        col.enabled = enabled;
+
+        if (!enabled)
+            hitTargets.Clear();
+    }
+
+
     // 触发命中时，优先寻找对方身上的 Hurtbox，再把伤害数据交给真正的 IDamageable。
-private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other)
     {
         if (!active) return;
         if (other.transform.root == transform.root) return;
 
-        var hb = other.GetComponent<Hurtbox>() ?? other.GetComponentInParent<Hurtbox>();
-        if (hb == null) return;
+        Hurtbox hurtbox = other.GetComponent<Hurtbox>() ?? other.GetComponentInParent<Hurtbox>();
+        if (hurtbox == null || hitTargets.Contains(hurtbox)) return;
+        if (!IsInsideForwardArc(hurtbox.transform.position)) return;
 
         Vector3 hitPoint = other.ClosestPoint(transform.position);
-        Vector3 direction = other.transform.position - transform.position;
+        Vector3 direction = hurtbox.transform.position - transform.root.position;
+        direction.y = 0f;
         if (direction.sqrMagnitude > 0.0001f)
             direction.Normalize();
         else
-            direction = transform.forward;
+            direction = transform.root.forward;
 
-        var damageInfo = new DamageInfo(GetDamageAmount(), transform.root.gameObject, hitPoint, direction, damageType);
-        if (hb.ApplyDamage(damageInfo))
-        {
-            if (playImpactFeedback)
-            {
-                HitImpactManager.PlayImpact(
-                    hitStopSeconds,
-                    hitStopTimeScale,
-                    cameraShakeSeconds,
-                    cameraShakeStrength,
-                    cameraShakeFrequency);
-            }
+        DamageInfo damageInfo = new DamageInfo(GetDamageAmount(), transform.root.gameObject, hitPoint, direction, damageType);
+        if (!hurtbox.ApplyDamage(damageInfo)) return;
 
-            col.enabled = false;
-            active = false;
-        }
+        hitTargets.Add(hurtbox);
+        PlayImpactOnce();
+
+        if (closeAfterFirstHit)
+            CloseHitbox();
     }
 
     private int GetDamageAmount()
@@ -111,5 +160,39 @@ private void OnTriggerEnter(Collider other)
         }
 
         return Mathf.Max(0, damage);
+    }
+
+
+    private bool IsInsideForwardArc(Vector3 targetPosition)
+    {
+        if (!requireForwardArc || forwardArcDegrees >= 359f)
+            return true;
+
+        Vector3 toTarget = targetPosition - transform.root.position;
+        toTarget.y = 0f;
+        if (toTarget.sqrMagnitude < 0.0001f)
+            return true;
+
+        Vector3 forward = transform.root.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f)
+            return true;
+
+        float angle = Vector3.Angle(forward, toTarget);
+        return angle <= forwardArcDegrees * 0.5f;
+    }
+
+    private void PlayImpactOnce()
+    {
+        if (!playImpactFeedback || impactPlayedThisSwing)
+            return;
+
+        impactPlayedThisSwing = true;
+        HitImpactManager.PlayImpact(
+            hitStopSeconds,
+            hitStopTimeScale,
+            cameraShakeSeconds,
+            cameraShakeStrength,
+            cameraShakeFrequency);
     }
 }

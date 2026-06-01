@@ -54,16 +54,22 @@ public void RefreshWeaponVisual()
         ItemSO equippedWeapon = player != null ? player.EquippedWeapon : null;
         if (currentWeapon == equippedWeapon && equippedWeaponVisual != null)
         {
-            SetSocketDefaultChildrenVisible(false);
+            ApplyDefaultWeaponVisualVisibility(equippedWeapon);
+            EnsureAttackHitboxOnSocket();
             return;
         }
 
         ClearWeaponVisual();
         currentWeapon = equippedWeapon;
-        SetSocketDefaultChildrenVisible(false);
 
         if (equippedWeapon == null || equippedWeapon.prefab == null || weaponSocket == null)
+        {
+            ApplyDefaultWeaponVisualVisibility(null);
+            EnsureAttackHitboxOnSocket();
             return;
+        }
+
+        ApplyDefaultWeaponVisualVisibility(equippedWeapon);
 
         equippedWeaponVisual = Instantiate(equippedWeapon.prefab, weaponSocket);
         equippedWeaponVisual.name = equippedWeapon.prefab.name + "_Equipped";
@@ -74,6 +80,7 @@ public void RefreshWeaponVisual()
         visualTransform.localScale = weaponLocalScale;
 
         PrepareEquippedVisual(equippedWeaponVisual);
+        EnsureAttackHitboxOnSocket();
     }
 
     private void ResolveReferences()
@@ -121,11 +128,17 @@ private void CaptureSocketDefaultChildren()
         for (int i = 0; i < weaponSocket.childCount; i++)
         {
             Transform child = weaponSocket.GetChild(i);
-            if (child != null)
+            if (child != null && !HasAttackHitbox(child))
                 defaultSocketChildren.Add(child.gameObject);
         }
 
         capturedDefaultSocketChildren = true;
+    }
+
+    private void ApplyDefaultWeaponVisualVisibility(ItemSO equippedWeapon)
+    {
+        bool showDefaultVisual = equippedWeapon == null || equippedWeapon.prefab == null;
+        SetSocketDefaultChildrenVisible(showDefaultVisual);
     }
 
     private void SetSocketDefaultChildrenVisible(bool visible)
@@ -136,6 +149,29 @@ private void CaptureSocketDefaultChildren()
             if (child != null)
                 child.SetActive(visible);
         }
+    }
+
+    // 攻击盒始终挂在武器挂点上，随骨骼/武器动画移动，不参与“换武器视觉”的显隐。
+    private void EnsureAttackHitboxOnSocket()
+    {
+        if (weaponSocket == null)
+            return;
+
+        AttackHitbox hitbox = GetComponentInChildren<AttackHitbox>(true);
+        if (hitbox == null)
+            return;
+
+        Transform hitboxTransform = hitbox.transform;
+        if (hitboxTransform.parent != weaponSocket)
+            hitboxTransform.SetParent(weaponSocket, false);
+
+        if (!hitbox.gameObject.activeSelf)
+            hitbox.gameObject.SetActive(true);
+    }
+
+    private static bool HasAttackHitbox(Transform transform)
+    {
+        return transform != null && transform.GetComponent<AttackHitbox>() != null;
     }
 
     private static Transform FindChildRecursive(Transform root, string childName)

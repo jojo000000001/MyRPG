@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -34,11 +35,17 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private float hitKnockbackUpSpeed = 0.8f;
     [SerializeField] private float hitKnockbackDamping = 22f;
 
+    [Header("Attack Hitbox")]
+    [SerializeField] private bool useFallbackHitbox = true;
+    [SerializeField] private float fallbackHitboxDelay = 0.12f;
+    [SerializeField] private float fallbackHitboxSeconds = 0.12f;
     private int currentHp;
     private float lastDamagedAt = -999f;
     private Vector3 hitKnockbackVelocity;
     private float controlLockedUntil = -999f;
 
+    private Coroutine queuedHitboxRoutine;
+    private bool attackHitboxEventReceived;
     public int MaxHp => maxHp;
     public int CurrentHp => currentHp;
     public int Armor => armor;
@@ -136,6 +143,8 @@ public class Player : MonoBehaviour, IDamageable
         hitKnockbackSpeed = Mathf.Max(0f, hitKnockbackSpeed);
         hitKnockbackUpSpeed = Mathf.Max(0f, hitKnockbackUpSpeed);
         hitKnockbackDamping = Mathf.Max(0f, hitKnockbackDamping);
+        fallbackHitboxDelay = Mathf.Max(0f, fallbackHitboxDelay);
+        fallbackHitboxSeconds = Mathf.Max(0.01f, fallbackHitboxSeconds);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
@@ -185,7 +194,7 @@ public class Player : MonoBehaviour, IDamageable
     {
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
-        attackHitbox = GetComponentInChildren<AttackHitbox>();
+        attackHitbox = GetComponentInChildren<AttackHitbox>(true);
         hitFeedback = GetComponent<HitFeedback>();
         if (hitFeedback == null)
             hitFeedback = gameObject.AddComponent<HitFeedback>();
@@ -376,6 +385,7 @@ public class Player : MonoBehaviour, IDamageable
         if (comboCount != 0 && Time.time > comboExpiresAt)
         {
             comboCount = 0;
+            CancelQueuedAttackHitbox();
             animator.SetBool("IsAttacking", false);
         }
 
@@ -393,8 +403,7 @@ public class Player : MonoBehaviour, IDamageable
 
             comboExpiresAt = Time.time + comboWindow;
 
-            if (attackHitbox != null)
-                attackHitbox.ActivateOnce();
+            QueueAttackHitbox();
         }
     }
 
@@ -517,6 +526,7 @@ public class Player : MonoBehaviour, IDamageable
     private void OnDeath()
     {
         comboCount = 0;
+        CancelQueuedAttackHitbox();
         velocity = Vector3.zero;
         smoothedMove = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;
@@ -577,5 +587,70 @@ public class Player : MonoBehaviour, IDamageable
             smoothedMove = Vector3.zero;
 
         return smoothedMove;
+    }
+
+
+    private void QueueAttackHitbox()
+    {
+        attackHitboxEventReceived = false;
+
+        if (queuedHitboxRoutine != null)
+            StopCoroutine(queuedHitboxRoutine);
+
+        if (!useFallbackHitbox || attackHitbox == null)
+            return;
+
+        queuedHitboxRoutine = StartCoroutine(OpenFallbackHitboxAfterDelay());
+    }
+
+    private IEnumerator OpenFallbackHitboxAfterDelay()
+    {
+        if (fallbackHitboxDelay > 0f)
+            yield return new WaitForSeconds(fallbackHitboxDelay);
+
+        queuedHitboxRoutine = null;
+
+        if (!attackHitboxEventReceived && attackHitbox != null)
+            attackHitbox.ActivateForSeconds(fallbackHitboxSeconds);
+    }
+
+    private void CancelQueuedAttackHitbox()
+    {
+        if (queuedHitboxRoutine != null)
+        {
+            StopCoroutine(queuedHitboxRoutine);
+            queuedHitboxRoutine = null;
+        }
+
+        if (attackHitbox != null)
+            attackHitbox.CloseHitbox();
+    }
+
+    public void AttackHitboxOpen()
+    {
+        attackHitboxEventReceived = true;
+
+        if (queuedHitboxRoutine != null)
+        {
+            StopCoroutine(queuedHitboxRoutine);
+            queuedHitboxRoutine = null;
+        }
+
+        if (attackHitbox != null)
+            attackHitbox.OpenHitbox();
+    }
+
+    public void AttackHitboxClose()
+    {
+        attackHitboxEventReceived = true;
+        if (attackHitbox != null)
+            attackHitbox.CloseHitbox();
+    }
+
+    public void AttackHitboxPulse()
+    {
+        attackHitboxEventReceived = true;
+        if (attackHitbox != null)
+            attackHitbox.ActivateOnce();
     }
 }
