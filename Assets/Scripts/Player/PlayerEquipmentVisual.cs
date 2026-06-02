@@ -9,6 +9,7 @@ public sealed class PlayerEquipmentVisual : MonoBehaviour
     [SerializeField] private Player player;
     [SerializeField] private Animator animator;
     [SerializeField] private Transform weaponSocket;
+    [SerializeField] private Transform weaponVisualPivot;
 
     [Header("Attachment")]
     [SerializeField] private HumanBodyBones attachmentBone = HumanBodyBones.RightHand;
@@ -26,6 +27,7 @@ public sealed class PlayerEquipmentVisual : MonoBehaviour
     {
         ResolveReferences();
         EnsureWeaponSocket();
+        EnsureWeaponVisualPivot();
         RefreshWeaponVisual();
     }
 
@@ -49,6 +51,7 @@ public void RefreshWeaponVisual()
     {
         ResolveReferences();
         EnsureWeaponSocket();
+        EnsureWeaponVisualPivot();
         CaptureSocketDefaultChildren();
 
         ItemSO equippedWeapon = player != null ? player.EquippedWeapon : null;
@@ -71,7 +74,7 @@ public void RefreshWeaponVisual()
 
         ApplyDefaultWeaponVisualVisibility(equippedWeapon);
 
-        equippedWeaponVisual = Instantiate(equippedWeapon.prefab, weaponSocket);
+        equippedWeaponVisual = Instantiate(equippedWeapon.prefab, weaponVisualPivot);
         equippedWeaponVisual.name = equippedWeapon.prefab.name + "_Equipped";
 
         Transform visualTransform = equippedWeaponVisual.transform;
@@ -119,16 +122,63 @@ private void EnsureWeaponSocket()
         weaponSocket.localScale = Vector3.one;
     }
 
-private void CaptureSocketDefaultChildren()
+    private Transform EnsureWeaponVisualPivot()
     {
-        if (capturedDefaultSocketChildren || weaponSocket == null)
+        EnsureWeaponSocket();
+        if (weaponVisualPivot != null)
+            return weaponVisualPivot;
+
+        Transform existing = weaponSocket.Find("WeaponVisual");
+        if (existing != null)
+        {
+            weaponVisualPivot = existing;
+            EnsureWeaponVisualOffsetComponent(weaponVisualPivot.gameObject);
+            ReparentDefaultWeaponMeshesToPivot();
+            return weaponVisualPivot;
+        }
+
+        GameObject pivotObject = new GameObject("WeaponVisual");
+        weaponVisualPivot = pivotObject.transform;
+        weaponVisualPivot.SetParent(weaponSocket, false);
+        weaponVisualPivot.localPosition = Vector3.zero;
+        weaponVisualPivot.localRotation = Quaternion.identity;
+        weaponVisualPivot.localScale = Vector3.one;
+        EnsureWeaponVisualOffsetComponent(pivotObject);
+        ReparentDefaultWeaponMeshesToPivot();
+        return weaponVisualPivot;
+    }
+
+    private void ReparentDefaultWeaponMeshesToPivot()
+    {
+        if (weaponSocket == null || weaponVisualPivot == null)
+            return;
+
+        for (int i = weaponSocket.childCount - 1; i >= 0; i--)
+        {
+            Transform child = weaponSocket.GetChild(i);
+            if (child == null || child == weaponVisualPivot || HasAttackHitbox(child))
+                continue;
+
+            child.SetParent(weaponVisualPivot, true);
+        }
+    }
+
+    private static void EnsureWeaponVisualOffsetComponent(GameObject pivotObject)
+    {
+        if (pivotObject.GetComponent<PlayerWeaponVisualOffset>() == null)
+            pivotObject.AddComponent<PlayerWeaponVisualOffset>();
+    }
+
+    private void CaptureSocketDefaultChildren()
+    {
+        if (capturedDefaultSocketChildren || weaponVisualPivot == null)
             return;
 
         defaultSocketChildren.Clear();
-        for (int i = 0; i < weaponSocket.childCount; i++)
+        for (int i = 0; i < weaponVisualPivot.childCount; i++)
         {
-            Transform child = weaponSocket.GetChild(i);
-            if (child != null && !HasAttackHitbox(child))
+            Transform child = weaponVisualPivot.GetChild(i);
+            if (child != null)
                 defaultSocketChildren.Add(child.gameObject);
         }
 

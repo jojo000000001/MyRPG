@@ -438,18 +438,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3cdafb3c2f54d434894928d72d282874, type: 3}
---- !u!134 &320688288
-PhysicMaterial:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: ' (Instance) (Instance)'
-  dynamicFriction: 0.6
-  staticFriction: 0.6
-  bounciness: 0
-  frictionCombine: 0
-  bounceCombine: 0
 --- !u!1 &322483590
 GameObject:
   m_ObjectHideFlags: 0
@@ -551,13 +539,13 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3cdafb3c2f54d434894928d72d282874, type: 3}
---- !u!134 &679015803
+--- !u!134 &607237580
 PhysicMaterial:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: ' (Instance) (Instance) (Instance)'
+  m_Name: ' (Instance) (Instance) (Instance) (Instance)'
   dynamicFriction: 0.6
   staticFriction: 0.6
   bounciness: 0
@@ -1366,6 +1354,18 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 60f79905accf3b24fa0114b941f1aac0, type: 3}
+--- !u!134 &1130111505
+PhysicMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ' (Instance) (Instance) (Instance)'
+  dynamicFriction: 0.6
+  staticFriction: 0.6
+  bounciness: 0
+  frictionCombine: 0
+  bounceCombine: 0
 --- !u!1001 &1350375241
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2134,14 +2134,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 659960436058308672, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
+      propertyPath: weaponLocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2232546482660746894, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: m_Material
       value: 
-      objectReference: {fileID: 320688288}
+      objectReference: {fileID: 1130111505}
     - target: {fileID: 5117138862418149879, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: m_Material
       value: 
-      objectReference: {fileID: 679015803}
+      objectReference: {fileID: 607237580}
     - target: {fileID: 6532088156639305944, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.47980204
