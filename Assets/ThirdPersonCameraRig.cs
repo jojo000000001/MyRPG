@@ -7,7 +7,7 @@ public class ThirdPersonCameraRig : MonoBehaviour
 {
     [Header("Target")]
     [SerializeField] private Transform target;
-    [SerializeField] private Vector3 pivotOffset = new Vector3(0f, 1.3f, 0f);
+    [SerializeField] private Vector3 pivotOffset = new Vector3(0f, 1.15f, 0f);
 
     [Header("Look")]
     [SerializeField] private bool lockYawToTarget = false;
@@ -16,12 +16,12 @@ public class ThirdPersonCameraRig : MonoBehaviour
 
     [Header("Pitch")]
     [SerializeField] private float pitchSpeed = 140f;
-    [SerializeField] private float minPitch = -20f;
-    [SerializeField] private float maxPitch = 45f;
-    [SerializeField] private float initialPitch = 12f;
+    [SerializeField] private float minPitch = -15f;
+    [SerializeField] private float maxPitch = 40f;
+    [SerializeField] private float initialPitch = 4f;
 
     [Header("Distance")]
-    [SerializeField] private float distance = 3f;
+    [SerializeField] private float distance = 3.8f;
     [SerializeField] private float shoulder = 1f;
 
     [Header("Smoothing")]

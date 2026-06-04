@@ -2138,6 +2138,10 @@ PrefabInstance:
       propertyPath: weaponLocalPosition.x
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 989039253873108104, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
+      propertyPath: attackLeftYawBias
+      value: 22
+      objectReference: {fileID: 0}
     - target: {fileID: 2232546482660746894, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: m_Material
       value: 

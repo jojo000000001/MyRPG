@@ -39,6 +39,11 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private bool useFallbackHitbox = true;
     [SerializeField] private float fallbackHitboxDelay = 0.12f;
     [SerializeField] private float fallbackHitboxSeconds = 0.12f;
+
+    [Header("Attack Assist")]
+    [SerializeField] private bool biasLeftWhenEnemyInRange = true;
+    [SerializeField] private float attackAssistRadius = 4.5f;
+    [SerializeField, Range(0f, 45f)] private float attackLeftYawBias = 20f;
     private int currentHp;
     private float lastDamagedAt = -999f;
     private Vector3 hitKnockbackVelocity;
@@ -145,6 +150,8 @@ public class Player : MonoBehaviour, IDamageable
         hitKnockbackDamping = Mathf.Max(0f, hitKnockbackDamping);
         fallbackHitboxDelay = Mathf.Max(0f, fallbackHitboxDelay);
         fallbackHitboxSeconds = Mathf.Max(0.01f, fallbackHitboxSeconds);
+        attackAssistRadius = Mathf.Max(0f, attackAssistRadius);
+        attackLeftYawBias = Mathf.Clamp(attackLeftYawBias, 0f, 45f);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
@@ -279,8 +286,9 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         Vector3 desiredMove = Vector3.zero;
+        bool attackBiasActive = MaintainAttackLeftBiasRotation();
 
-        if (hasWS && wsYawActive)
+        if (!attackBiasActive && hasWS && wsYawActive)
         {
             float maxYaw = Mathf.Max(0f, wsMaxYawOffset);
             float yawDelta = horizontal * wsTurnSpeed * Time.deltaTime;
@@ -301,7 +309,7 @@ public class Player : MonoBehaviour, IDamageable
             animator.SetFloat("y", vertical * runValue);
             animator.SetFloat("x", 0f);
         }
-        else if (onlyAD && adYawActive)
+        else if (!attackBiasActive && onlyAD && adYawActive)
         {
             float desiredOffset = (horizontal > 0f ? 1f : -1f) * Mathf.Max(0f, adTurnAngle);
             if (!Mathf.Approximately(Mathf.Sign(adYawOffset), Mathf.Sign(desiredOffset)))
@@ -326,13 +334,13 @@ public class Player : MonoBehaviour, IDamageable
             animator.SetFloat("y", desiredMove.sqrMagnitude > 0.0001f ? runValue : 0f);
             animator.SetFloat("x", 0f);
         }
-        else if (onlyADCandidate)
+        else if (!attackBiasActive && onlyADCandidate)
         {
             desiredMove = Vector3.zero;
             animator.SetFloat("y", 0f);
             animator.SetFloat("x", 0f);
         }
-        else
+        else if (!attackBiasActive)
         {
             desiredMove = transform.forward * vertical * moveSpeed + transform.right * horizontal * moveSpeed;
 
@@ -345,6 +353,11 @@ public class Player : MonoBehaviour, IDamageable
 
             animator.SetFloat("y", vertical * runValue);
             animator.SetFloat("x", horizontal);
+        }
+        else
+        {
+            animator.SetFloat("y", 0f);
+            animator.SetFloat("x", 0f);
         }
 
         // 对水平速度做指数平滑，让起步和停下更柔和。
@@ -392,6 +405,8 @@ public class Player : MonoBehaviour, IDamageable
         // 鼠标左键推进三段攻击，并开启一次攻击判定盒。
         if (!inputLocked && Input.GetMouseButtonDown(0))
         {
+            ApplyAttackLeftBiasWhenEnemyInRange();
+
             animator.SetBool("IsAttacking", true);
 
             comboCount++;
@@ -589,6 +604,82 @@ public class Player : MonoBehaviour, IDamageable
         return smoothedMove;
     }
 
+
+    private void ApplyAttackLeftBiasWhenEnemyInRange()
+    {
+        if (!TryGetAttackLeftBiasYaw(out float targetYaw))
+            return;
+
+        transform.rotation = Quaternion.Euler(0f, targetYaw, 0f);
+
+        adYawActive = false;
+        adOnlyStartedAt = -1f;
+        wsYawActive = false;
+        wsYawOffset = 0f;
+        smoothedMove = Vector3.zero;
+    }
+
+    private bool MaintainAttackLeftBiasRotation()
+    {
+        if (animator == null || !animator.GetBool("IsAttacking"))
+            return false;
+
+        if (!TryGetAttackLeftBiasYaw(out float targetYaw))
+            return false;
+
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            Quaternion.Euler(0f, targetYaw, 0f),
+            wsFaceTurnSpeed * Time.deltaTime);
+
+        return true;
+    }
+
+    private bool TryGetAttackLeftBiasYaw(out float targetYaw)
+    {
+        targetYaw = 0f;
+
+        if (!biasLeftWhenEnemyInRange || attackLeftYawBias <= 0f)
+            return false;
+
+        if (!TryFindNearestLivingMonster(transform.position, out Monster enemy, out float distance))
+            return false;
+
+        if (distance > attackAssistRadius)
+            return false;
+
+        Vector3 toEnemy = enemy.transform.position - transform.position;
+        toEnemy.y = 0f;
+        if (toEnemy.sqrMagnitude < 0.0001f)
+            return false;
+
+        float yawToEnemy = Mathf.Atan2(toEnemy.x, toEnemy.z) * Mathf.Rad2Deg;
+        targetYaw = yawToEnemy - attackLeftYawBias;
+        return true;
+    }
+
+    private static bool TryFindNearestLivingMonster(Vector3 origin, out Monster nearest, out float nearestDistance)
+    {
+        nearest = null;
+        nearestDistance = float.MaxValue;
+
+        Monster[] monsters = FindObjectsOfType<Monster>();
+        for (int i = 0; i < monsters.Length; i++)
+        {
+            Monster monster = monsters[i];
+            if (monster == null || monster.IsDead)
+                continue;
+
+            float distance = Vector3.Distance(monster.transform.position, origin);
+            if (distance >= nearestDistance)
+                continue;
+
+            nearestDistance = distance;
+            nearest = monster;
+        }
+
+        return nearest != null;
+    }
 
     private void QueueAttackHitbox()
     {
