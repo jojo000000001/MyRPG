@@ -2905,12 +2905,12 @@ MonoBehaviour:
   enableHitFeedback: 1
   hitTriggerParam: Hit
   hitBoolParam: 
-  hitBoolSeconds: 0.08
+  hitBoolSeconds: 0.05
   cancelAttackOnHit: 1
-  hitControlLockSeconds: 0.12
-  hitKnockbackSpeed: 4.5
-  hitKnockbackUpSpeed: 0.8
-  hitKnockbackDamping: 22
+  hitControlLockSeconds: 0.04
+  hitKnockbackSpeed: 2.2
+  hitKnockbackUpSpeed: 0.25
+  hitKnockbackDamping: 30
   useFallbackHitbox: 1
   fallbackHitboxDelay: 0.2
   fallbackHitboxSeconds: 0.12

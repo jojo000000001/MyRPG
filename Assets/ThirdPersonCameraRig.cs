@@ -28,6 +28,9 @@ public class ThirdPersonCameraRig : MonoBehaviour
     [SerializeField] private float followSmooth = 12f;
     [SerializeField] private float yawFollowSmooth = 6f;
 
+    [Header("Combat Assist")]
+    [SerializeField] private float combatYawFollowSmooth = 5.5f;
+
     [Header("Refs")]
     [SerializeField] private Transform pivot;
     [SerializeField] private Camera cam;
@@ -35,6 +38,7 @@ public class ThirdPersonCameraRig : MonoBehaviour
     // yaw/pitch 保存当前相机角度，避免直接从 Transform 反推导致角度跳变。
     private float yaw;
     private float pitch;
+    private Player player;
 
     private void Reset()
     {
@@ -54,6 +58,7 @@ public class ThirdPersonCameraRig : MonoBehaviour
 
         pitch = initialPitch;
         yaw = target ? target.eulerAngles.y : transform.eulerAngles.y;
+        player = target != null ? target.GetComponent<Player>() : null;
     }
 
     private void Start()
@@ -67,9 +72,17 @@ public class ThirdPersonCameraRig : MonoBehaviour
         if (!target || !pivot || !cam) return;
 
         bool allowLook = !requireRightMouseToLook || Input.GetMouseButton(1);
+        bool combatAssist = player != null && player.IsCombatCameraAssistActive;
 
-        // yaw：可选跟随主角，也可由鼠标控制。
-        if (lockYawToTarget || !allowLook)
+        // yaw：攻击辅助时镜头转到玩家背后；否则跟随主角或鼠标环绕。
+        if (combatAssist)
+        {
+            yaw = Mathf.LerpAngle(
+                yaw,
+                target.eulerAngles.y,
+                1f - Mathf.Exp(-combatYawFollowSmooth * Time.deltaTime));
+        }
+        else if (lockYawToTarget || !allowLook)
         {
             yaw = Mathf.LerpAngle(yaw, target.eulerAngles.y, 1f - Mathf.Exp(-yawFollowSmooth * Time.deltaTime));
         }

@@ -28,12 +28,12 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private bool enableHitFeedback = true;
     [SerializeField] private string hitTriggerParam = "Hit";
     [SerializeField] private string hitBoolParam = "";
-    [SerializeField] private float hitBoolSeconds = 0.08f;
+    [SerializeField] private float hitBoolSeconds = 0.05f;
     [SerializeField] private bool cancelAttackOnHit = true;
-    [SerializeField] private float hitControlLockSeconds = 0.12f;
-    [SerializeField] private float hitKnockbackSpeed = 4.5f;
-    [SerializeField] private float hitKnockbackUpSpeed = 0.8f;
-    [SerializeField] private float hitKnockbackDamping = 22f;
+    [SerializeField] private float hitControlLockSeconds = 0.04f;
+    [SerializeField] private float hitKnockbackSpeed = 2.2f;
+    [SerializeField] private float hitKnockbackUpSpeed = 0.25f;
+    [SerializeField] private float hitKnockbackDamping = 30f;
 
     [Header("Attack Hitbox")]
     [SerializeField] private bool useFallbackHitbox = true;
@@ -41,9 +41,12 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private float fallbackHitboxSeconds = 0.12f;
 
     [Header("Attack Assist")]
-    [SerializeField] private bool biasLeftWhenEnemyInRange = true;
+    [SerializeField] private bool enableAttackAssist = true;
     [SerializeField] private float attackAssistRadius = 4.5f;
-    [SerializeField, Range(0f, 45f)] private float attackLeftYawBias = 20f;
+    [SerializeField] private float attackFaceTurnSpeed = 720f;
+    [Tooltip("相对敌人朝向的额外偏航（度）。0 表示正面对准敌人。")]
+    [SerializeField, Range(-45f, 45f)] private float attackYawOffset = 0f;
+    [SerializeField] private bool assistCameraBehindOnAttack = true;
     private int currentHp;
     private float lastDamagedAt = -999f;
     private Vector3 hitKnockbackVelocity;
@@ -63,6 +66,9 @@ public class Player : MonoBehaviour, IDamageable
     public ItemSO EquippedWeapon => equippedWeapon;
     public bool IsDead => currentHp <= 0;
     public float Health01 => maxHp <= 0 ? 0f : Mathf.Clamp01((float)currentHp / maxHp);
+    public bool IsAttacking => animator != null && animator.GetBool("IsAttacking");
+    public bool AssistCameraBehindOnAttack => assistCameraBehindOnAttack;
+    public bool IsCombatCameraAssistActive => assistCameraBehindOnAttack && IsAttacking && HasEnemyInAttackAssistRange();
 
     public event Action Died;
 
@@ -153,7 +159,8 @@ public class Player : MonoBehaviour, IDamageable
         fallbackHitboxDelay = Mathf.Max(0f, fallbackHitboxDelay);
         fallbackHitboxSeconds = Mathf.Max(0.01f, fallbackHitboxSeconds);
         attackAssistRadius = Mathf.Max(0f, attackAssistRadius);
-        attackLeftYawBias = Mathf.Clamp(attackLeftYawBias, 0f, 45f);
+        attackFaceTurnSpeed = Mathf.Max(1f, attackFaceTurnSpeed);
+        attackYawOffset = Mathf.Clamp(attackYawOffset, -45f, 45f);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
@@ -356,7 +363,7 @@ public class Player : MonoBehaviour, IDamageable
             animator.SetFloat("x", horizontal);
         }
 
-        MaintainAttackLeftBiasRotation();
+        MaintainAttackAssistFacing();
 
         // 对水平速度做指数平滑，让起步和停下更柔和。
         Vector3 move = SmoothHorizontalMove(desiredMove);
@@ -403,7 +410,7 @@ public class Player : MonoBehaviour, IDamageable
         // 鼠标左键推进三段攻击，并开启一次攻击判定盒。
         if (!inputLocked && Input.GetMouseButtonDown(0))
         {
-            ApplyAttackLeftBiasWhenEnemyInRange();
+            ApplyAttackAssistFacing(snap: true);
 
             animator.SetBool("IsAttacking", true);
 
@@ -604,15 +611,21 @@ public class Player : MonoBehaviour, IDamageable
     }
 
 
-    private void ApplyAttackLeftBiasWhenEnemyInRange()
+    public bool HasEnemyInAttackAssistRange()
     {
-        if (!TryGetAttackLeftBiasYaw(out float targetYaw))
+        return enableAttackAssist &&
+            Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out _, out _);
+    }
+
+    private void ApplyAttackAssistFacing(bool snap = false)
+    {
+        if (!TryGetAttackAssistYaw(out float targetYaw))
             return;
 
-        transform.rotation = Quaternion.RotateTowards(
-            transform.rotation,
-            Quaternion.Euler(0f, targetYaw, 0f),
-            wsFaceTurnSpeed * Time.deltaTime * 3f);
+        Quaternion targetRot = Quaternion.Euler(0f, targetYaw, 0f);
+        transform.rotation = snap
+            ? targetRot
+            : Quaternion.RotateTowards(transform.rotation, targetRot, attackFaceTurnSpeed * Time.deltaTime);
 
         adYawActive = false;
         adOnlyStartedAt = -1f;
@@ -620,25 +633,19 @@ public class Player : MonoBehaviour, IDamageable
         wsYawOffset = 0f;
     }
 
-    private void MaintainAttackLeftBiasRotation()
+    private void MaintainAttackAssistFacing()
     {
-        if (animator == null || !animator.GetBool("IsAttacking"))
+        if (!IsAttacking)
             return;
 
-        if (!TryGetAttackLeftBiasYaw(out float targetYaw))
-            return;
-
-        transform.rotation = Quaternion.RotateTowards(
-            transform.rotation,
-            Quaternion.Euler(0f, targetYaw, 0f),
-            wsFaceTurnSpeed * Time.deltaTime);
+        ApplyAttackAssistFacing(snap: false);
     }
 
-    private bool TryGetAttackLeftBiasYaw(out float targetYaw)
+    private bool TryGetAttackAssistYaw(out float targetYaw)
     {
         targetYaw = 0f;
 
-        if (!biasLeftWhenEnemyInRange || attackLeftYawBias <= 0f)
+        if (!enableAttackAssist)
             return false;
 
         if (!Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out Monster enemy, out _))
@@ -650,7 +657,7 @@ public class Player : MonoBehaviour, IDamageable
             return false;
 
         float yawToEnemy = Mathf.Atan2(toEnemy.x, toEnemy.z) * Mathf.Rad2Deg;
-        targetYaw = yawToEnemy - attackLeftYawBias;
+        targetYaw = yawToEnemy + attackYawOffset;
         return true;
     }
 

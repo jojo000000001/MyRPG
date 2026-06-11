@@ -1281,6 +1281,7 @@ MonoBehaviour:
   shoulder: 0.3
   followSmooth: 16
   yawFollowSmooth: 4
+  combatYawFollowSmooth: 5.5
   pivot: {fileID: 0}
   cam: {fileID: 0}
 --- !u!4 &984106048
