@@ -1,18 +1,20 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 负责在场景中生成一个 Goblin 实例，并缓存已生成对象避免重复生成。
+/// 在场景中生成若干 Goblin，并注册到 DemoGameManager。
 /// </summary>
 public class GoblinSpawner : MonoBehaviour
 {
     [SerializeField] private GameObject goblinPrefab;
     [SerializeField] private bool spawnOnStart = true;
     [SerializeField] private bool keepSpawnedAsChild;
+    [SerializeField] private int spawnCount = 3;
+    [SerializeField] private float spawnRadius = 2.5f;
 
-    // 保存当前生成出来的怪物，后续调用 Spawn 会直接复用。
-    private GameObject spawnedGoblin;
+    private readonly List<GameObject> spawnedGoblins = new List<GameObject>();
 
-    public GameObject SpawnedGoblin => spawnedGoblin;
+    public IReadOnlyList<GameObject> SpawnedGoblins => spawnedGoblins;
 
     private void Start()
     {
@@ -21,22 +23,44 @@ public class GoblinSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// 生成 Goblin；如果已经生成过，则直接返回已有实例。
+    /// 按环形分布生成 Goblin；重复调用不会再次生成。
     /// </summary>
-    public GameObject Spawn()
+    public IReadOnlyList<GameObject> Spawn()
     {
         if (goblinPrefab == null)
         {
             Debug.LogWarning("GoblinSpawner is missing a goblin prefab.", this);
-            return null;
+            return spawnedGoblins;
         }
 
-        if (spawnedGoblin != null)
-            return spawnedGoblin;
+        if (spawnedGoblins.Count > 0)
+            return spawnedGoblins;
 
+        int count = Mathf.Max(1, spawnCount);
         Transform parent = keepSpawnedAsChild ? transform : null;
-        spawnedGoblin = Instantiate(goblinPrefab, transform.position, transform.rotation, parent);
-        spawnedGoblin.name = goblinPrefab.name;
-        return spawnedGoblin;
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 offset = GetSpawnOffset(i, count);
+            Vector3 position = transform.position + offset;
+            GameObject instance = Instantiate(goblinPrefab, position, transform.rotation, parent);
+            instance.name = $"{goblinPrefab.name}_{i + 1}";
+            spawnedGoblins.Add(instance);
+
+            Monster monster = instance.GetComponent<Monster>();
+            if (monster != null && DemoGameManager.Instance != null)
+                DemoGameManager.Instance.RegisterEnemy(monster);
+        }
+
+        return spawnedGoblins;
+    }
+
+    private Vector3 GetSpawnOffset(int index, int count)
+    {
+        if (count <= 1)
+            return Vector3.zero;
+
+        float angle = (360f / count) * index * Mathf.Deg2Rad;
+        return new Vector3(Mathf.Cos(angle) * spawnRadius, 0f, Mathf.Sin(angle) * spawnRadius);
     }
 }

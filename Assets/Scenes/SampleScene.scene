@@ -872,6 +872,8 @@ MonoBehaviour:
   goblinPrefab: {fileID: 8774068745279538911, guid: bc988f8d3393a9148b17e8525a4a46bc, type: 3}
   spawnOnStart: 1
   keepSpawnedAsChild: 0
+  spawnCount: 3
+  spawnRadius: 2.5
 --- !u!4 &768008811
 Transform:
   m_ObjectHideFlags: 0
@@ -2126,6 +2128,68 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 88f2fd29f58b9734683512546acec310, type: 3}
+--- !u!1 &1999000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1999000002}
+  - component: {fileID: 1999000003}
+  - component: {fileID: 1999000004}
+  m_Layer: 0
+  m_Name: DemoManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1999000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1999000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1999000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1999000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5f9a2b34c6e5f7012345678abcdef02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  introFadeSeconds: 8
+--- !u!114 &1999000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1999000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4e8f1a23b5d4e6f9012345678abcd01, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 6781608451375289610}
+  flowUI: {fileID: 1999000003}
+  killsToWin: 3
+  defeatDelaySeconds: 0.6
 --- !u!1001 &2247946494811257750
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2137,6 +2201,10 @@ PrefabInstance:
     - target: {fileID: 659960436058308672, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: weaponLocalPosition.x
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 989039253873108104, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
+      propertyPath: moveSpeed
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 989039253873108104, guid: 8cfc1c7294f41d94ba9badce9884d1b3, type: 3}
       propertyPath: attackLeftYawBias
@@ -2299,6 +2367,7 @@ SceneRoots:
   - {fileID: 826798588}
   - {fileID: 3361348498229335368}
   - {fileID: 768008811}
+  - {fileID: 1999000002}
   - {fileID: 1706018196}
   - {fileID: 1962514934}
   - {fileID: 687036903}

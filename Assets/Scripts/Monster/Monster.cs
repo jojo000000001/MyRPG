@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -5,6 +7,8 @@ using UnityEngine;
 /// </summary>
 public abstract class Monster : MonoBehaviour, IDamageable
 {
+    private static readonly List<Monster> ActiveInstances = new List<Monster>();
+
     // 血量和受击间隔由子类共用，避免同一帧或连触发器重复扣血。
     [Header("Health")]
     [SerializeField] protected int maxHp = 30;
@@ -26,6 +30,8 @@ public abstract class Monster : MonoBehaviour, IDamageable
     public int MaxHp => maxHp;
     public bool IsDead => hp <= 0;
 
+    public event Action Died;
+
     protected virtual void Awake()
     {
         hp = Mathf.Max(1, maxHp);
@@ -33,6 +39,55 @@ public abstract class Monster : MonoBehaviour, IDamageable
         hitFeedback = GetComponent<HitFeedback>();
         if (hitFeedback == null)
             hitFeedback = gameObject.AddComponent<HitFeedback>();
+    }
+
+    protected virtual void OnEnable()
+    {
+        if (!ActiveInstances.Contains(this))
+            ActiveInstances.Add(this);
+    }
+
+    protected virtual void OnDisable()
+    {
+        ActiveInstances.Remove(this);
+    }
+
+    /// <summary>
+    /// 在半径内查找最近的存活怪物，避免每帧 FindObjectsOfType。
+    /// </summary>
+    public static bool TryFindNearestLiving(Vector3 origin, float maxRadius, out Monster nearest, out float distance)
+    {
+        nearest = null;
+        distance = float.MaxValue;
+
+        float maxRadiusSq = maxRadius * maxRadius;
+        float bestSq = maxRadiusSq;
+
+        for (int i = ActiveInstances.Count - 1; i >= 0; i--)
+        {
+            Monster monster = ActiveInstances[i];
+            if (monster == null)
+            {
+                ActiveInstances.RemoveAt(i);
+                continue;
+            }
+
+            if (monster.IsDead)
+                continue;
+
+            float distSq = (monster.transform.position - origin).sqrMagnitude;
+            if (distSq > bestSq)
+                continue;
+
+            bestSq = distSq;
+            nearest = monster;
+        }
+
+        if (nearest == null)
+            return false;
+
+        distance = Mathf.Sqrt(bestSq);
+        return true;
     }
 
     /// <summary>
@@ -79,6 +134,8 @@ public abstract class Monster : MonoBehaviour, IDamageable
     protected virtual void OnDeath()
     {
         SetLocomotionSpeed01(0f);
+        ActiveInstances.Remove(this);
+        Died?.Invoke();
     }
 
     // 用短暂布尔参数驱动受击动画，随后自动复位。

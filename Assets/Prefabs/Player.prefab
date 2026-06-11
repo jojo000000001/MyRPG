@@ -2902,7 +2902,7 @@ MonoBehaviour:
   attackPower: 2
   damageInvulnSeconds: 0.3
   equippedWeapon: {fileID: 0}
-  enableHitFeedback: 0
+  enableHitFeedback: 1
   hitTriggerParam: Hit
   hitBoolParam: 
   hitBoolSeconds: 0.08

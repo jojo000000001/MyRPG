@@ -493,15 +493,19 @@ public class Goblin : Monster
         patrolTarget = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
     }
 
+    private static Player cachedPlayer;
+
     // 如果没有目标，尝试在场景中查找 Player 作为追击目标。
     private void AcquireTarget()
     {
         if (target != null)
             return;
 
-        var player = Object.FindObjectOfType<Player>();
-        if (player != null)
-            target = player.transform;
+        if (cachedPlayer == null)
+            cachedPlayer = Object.FindObjectOfType<Player>();
+
+        if (cachedPlayer != null && !cachedPlayer.IsDead)
+            target = cachedPlayer.transform;
     }
 
     // 判断当前目标是否存在；如果目标是玩家，还要确认玩家没有死亡。
