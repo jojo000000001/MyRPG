@@ -17,7 +17,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
     [Header("Animation")]
     [SerializeField] private string hitTriggerParam = "";
     [SerializeField] private string hitBoolParam = "HitBool";
-    [SerializeField] private float hitFlagSeconds = 0.05f;
+    [SerializeField] private float hitFlagSeconds = 0.25f;
     [Tooltip("Animator float for locomotion: 0 = idle, 1 = run.")]
     [SerializeField] private string speedFloatParam = "Speed";
 

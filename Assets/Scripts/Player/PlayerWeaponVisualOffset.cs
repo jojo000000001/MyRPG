@@ -17,12 +17,12 @@ public sealed class PlayerWeaponVisualOffset : MonoBehaviour
         new Vector3(0f, -18f, 6f));
 
     [SerializeField] private AttackVisualProfile attack2 = new AttackVisualProfile(
-        new Vector3(-0.36f, 0.1f, 0f),
-        new Vector3(0f, -14f, 8f));
+        new Vector3(-0.08f, 0.05f, 0.02f),
+        new Vector3(3f, -4f, 8f));
 
     [SerializeField] private AttackVisualProfile attack3 = new AttackVisualProfile(
-        new Vector3(-0.48f, 0.02f, 0f),
-        new Vector3(0f, -22f, 10f));
+        new Vector3(-0.16f, 0.02f, 0f),
+        new Vector3(0f, -8f, 5f));
 
     private Vector3 defaultLocalPosition;
     private Quaternion defaultLocalRotation;

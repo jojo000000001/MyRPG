@@ -94,8 +94,7 @@ public sealed class DemoFlowUI : MonoBehaviour
                 buttonText.text = buttonLabel;
         }
 
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        GameplayCursor.UnlockForUI();
     }
 
     private IEnumerator FadeIntro()

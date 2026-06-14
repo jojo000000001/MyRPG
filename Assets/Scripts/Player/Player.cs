@@ -30,15 +30,13 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private string hitBoolParam = "";
     [SerializeField] private float hitBoolSeconds = 0.05f;
     [SerializeField] private bool cancelAttackOnHit = true;
-    [SerializeField] private float hitControlLockSeconds = 0.04f;
-    [SerializeField] private float hitKnockbackSpeed = 2.2f;
-    [SerializeField] private float hitKnockbackUpSpeed = 0.25f;
-    [SerializeField] private float hitKnockbackDamping = 30f;
 
     [Header("Attack Hitbox")]
     [SerializeField] private bool useFallbackHitbox = true;
     [SerializeField] private float fallbackHitboxDelay = 0.12f;
     [SerializeField] private float fallbackHitboxSeconds = 0.12f;
+    [Tooltip("动画 Close 后，若此时间内没有继续攻击，再关闭判定盒。")]
+    [SerializeField] private float hitboxIdleCloseSeconds = 0.3f;
 
     [Header("Attack Assist")]
     [SerializeField] private bool enableAttackAssist = true;
@@ -49,8 +47,6 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private bool assistCameraBehindOnAttack = true;
     private int currentHp;
     private float lastDamagedAt = -999f;
-    private Vector3 hitKnockbackVelocity;
-    private float controlLockedUntil = -999f;
 
     private Coroutine queuedHitboxRoutine;
     private bool attackHitboxEventReceived;
@@ -152,10 +148,6 @@ public class Player : MonoBehaviour, IDamageable
         attackPower = Mathf.Max(0, attackPower);
         damageInvulnSeconds = Mathf.Max(0f, damageInvulnSeconds);
         hitBoolSeconds = Mathf.Max(0f, hitBoolSeconds);
-        hitControlLockSeconds = Mathf.Max(0f, hitControlLockSeconds);
-        hitKnockbackSpeed = Mathf.Max(0f, hitKnockbackSpeed);
-        hitKnockbackUpSpeed = Mathf.Max(0f, hitKnockbackUpSpeed);
-        hitKnockbackDamping = Mathf.Max(0f, hitKnockbackDamping);
         fallbackHitboxDelay = Mathf.Max(0f, fallbackHitboxDelay);
         fallbackHitboxSeconds = Mathf.Max(0.01f, fallbackHitboxSeconds);
         attackAssistRadius = Mathf.Max(0f, attackAssistRadius);
@@ -241,21 +233,19 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         // 同时兼容 Unity 轴输入和直接按键输入，轴输入优先。
-        bool inputLocked = Time.time < controlLockedUntil;
+        float verticalAxis = Input.GetAxisRaw("Vertical");
+        float horizontalAxis = Input.GetAxisRaw("Horizontal");
 
-        float verticalAxis = inputLocked ? 0f : Input.GetAxisRaw("Vertical");
-        float horizontalAxis = inputLocked ? 0f : Input.GetAxisRaw("Horizontal");
-
-        float verticalKey = inputLocked ? 0f : (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
-        float horizontalKey = inputLocked ? 0f : (Input.GetKey(KeyCode.D) ? 1f : 0f) + (Input.GetKey(KeyCode.A) ? -1f : 0f);
+        float verticalKey = (Input.GetKey(KeyCode.W) ? 1f : 0f) + (Input.GetKey(KeyCode.S) ? -1f : 0f);
+        float horizontalKey = (Input.GetKey(KeyCode.D) ? 1f : 0f) + (Input.GetKey(KeyCode.A) ? -1f : 0f);
 
         float vertical = Mathf.Abs(verticalAxis) > 0.001f ? verticalAxis : verticalKey;
         float horizontal = Mathf.Abs(horizontalAxis) > 0.001f ? horizontalAxis : horizontalKey;
 
         bool isGrounded = characterController.isGrounded;
 
-        if (!inputLocked && Input.GetKeyDown(KeyCode.LeftShift)) runValue = 1f;
-        if (!inputLocked && Input.GetKeyUp(KeyCode.LeftShift)) runValue = 0.5f;
+        if (Input.GetKeyDown(KeyCode.LeftShift)) runValue = 1f;
+        if (Input.GetKeyUp(KeyCode.LeftShift)) runValue = 0.5f;
 
         bool hasForward = vertical > 0.01f;
         bool hasBack = vertical < -0.01f;
@@ -376,7 +366,7 @@ public class Player : MonoBehaviour, IDamageable
                 velocity.y = -1f;
         }
 
-        if (!inputLocked && Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.Space))
             lastJumpPressedAt = Time.time;
 
         bool hasBufferedJump = Time.time - lastJumpPressedAt <= Mathf.Max(0f, jumpBufferTime);
@@ -394,10 +384,10 @@ public class Player : MonoBehaviour, IDamageable
             velocity.y += gravity * gravityMultiplier * Time.deltaTime;
         }
 
-        if (!inputLocked && Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
+        if (Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
             velocity.y *= Mathf.Clamp01(lowJumpVelocityMultiplier);
 
-        characterController.Move((move + velocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
+        characterController.Move((move + velocity) * Time.deltaTime);
 
         // 连击窗口过期后复位，避免角色一直保持攻击状态。
         if (comboCount != 0 && Time.time > comboExpiresAt)
@@ -408,7 +398,7 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         // 鼠标左键推进三段攻击，并开启一次攻击判定盒。
-        if (!inputLocked && Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0))
         {
             ApplyAttackAssistFacing(snap: true);
 
@@ -422,6 +412,9 @@ public class Player : MonoBehaviour, IDamageable
             if (comboCount == 3) animator.SetTrigger("Atk3");
 
             comboExpiresAt = Time.time + comboWindow;
+
+            if (attackHitbox != null)
+                attackHitbox.CancelIdleClose();
 
             QueueAttackHitbox();
         }
@@ -467,58 +460,12 @@ public class Player : MonoBehaviour, IDamageable
         if (hitFeedback != null)
             hitFeedback.Play(animator, hitTriggerParam, hitBoolParam, hitBoolSeconds, damage);
 
-        smoothedMove = Vector3.zero;
-        adOnlyStartedAt = -1f;
-        adYawActive = false;
-        wsYawActive = false;
-
         if (cancelAttackOnHit)
         {
             comboCount = 0;
             if (animator != null)
                 animator.SetBool("IsAttacking", false);
         }
-
-        controlLockedUntil = Mathf.Max(controlLockedUntil, Time.time + hitControlLockSeconds);
-        ApplyHitKnockback(damage);
-    }
-
-    private void ApplyHitKnockback(DamageInfo damage)
-    {
-        Vector3 direction = damage.direction;
-        direction.y = 0f;
-
-        if (direction.sqrMagnitude < 0.0001f && damage.source != null)
-        {
-            direction = transform.position - damage.source.transform.position;
-            direction.y = 0f;
-        }
-
-        if (direction.sqrMagnitude < 0.0001f)
-            direction = -transform.forward;
-
-        direction.Normalize();
-        hitKnockbackVelocity = direction * hitKnockbackSpeed;
-
-        if (hitKnockbackUpSpeed > 0f)
-            velocity.y = Mathf.Max(velocity.y, hitKnockbackUpSpeed);
-    }
-
-    private Vector3 ConsumeHitKnockbackVelocity()
-    {
-        Vector3 current = hitKnockbackVelocity;
-        if (hitKnockbackDamping <= 0f)
-        {
-            hitKnockbackVelocity = Vector3.zero;
-            return current;
-        }
-
-        hitKnockbackVelocity = Vector3.MoveTowards(
-            hitKnockbackVelocity,
-            Vector3.zero,
-            hitKnockbackDamping * Time.deltaTime);
-
-        return current;
     }
 
     private int CalculateDamageAfterDefense(DamageInfo damage)
@@ -549,7 +496,6 @@ public class Player : MonoBehaviour, IDamageable
         CancelQueuedAttackHitbox();
         velocity = Vector3.zero;
         smoothedMove = Vector3.zero;
-        hitKnockbackVelocity = Vector3.zero;
         StopMovementAnimation();
         Died?.Invoke();
     }
@@ -715,7 +661,7 @@ public class Player : MonoBehaviour, IDamageable
     {
         attackHitboxEventReceived = true;
         if (attackHitbox != null)
-            attackHitbox.CloseHitbox();
+            attackHitbox.ScheduleIdleClose(hitboxIdleCloseSeconds);
     }
 
     public void AttackHitboxPulse()

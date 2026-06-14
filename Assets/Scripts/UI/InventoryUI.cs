@@ -86,6 +86,9 @@ public sealed class InventoryUI : MonoBehaviour
 
         if (player != null)
             player.EquipmentChanged -= Refresh;
+
+        if (isOpen)
+            GameplayCursor.LockForGameplay();
     }
 
     private void Update()
@@ -123,6 +126,16 @@ public sealed class InventoryUI : MonoBehaviour
 
         if (isOpen)
             Refresh();
+
+        ApplyCursorState();
+    }
+
+    private void ApplyCursorState()
+    {
+        if (isOpen)
+            GameplayCursor.UnlockForUI();
+        else
+            GameplayCursor.LockForGameplay();
     }
 
     public void Initialize(Inventory targetInventory, Player targetPlayer)

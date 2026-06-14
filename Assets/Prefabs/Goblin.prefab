@@ -2753,7 +2753,7 @@ MonoBehaviour:
   invulnSeconds: 0.15
   hitTriggerParam: 
   hitBoolParam: HitBool
-  hitFlagSeconds: 0.05
+  hitFlagSeconds: 0.28
   speedFloatParam: Speed
   target: {fileID: 0}
   detectRadius: 7
@@ -2791,7 +2791,7 @@ MonoBehaviour:
   weaponDropResourcePath: Drops/Weapons
   dropOffset: {x: 0, y: 0.15, z: 0}
   dropScatterRadius: 0.35
-  hitStaggerSeconds: 0.18
+  hitStaggerSeconds: 0.32
   hitKnockbackSpeed: 4
   hitKnockbackUpSpeed: 0.45
   hitKnockbackDamping: 18

@@ -23,6 +23,8 @@ public class AttackHitbox : MonoBehaviour
     [Header("Timing")]
     [SerializeField] private float activeSeconds = 0.12f;
     [SerializeField] private bool closeAfterFirstHit;
+    [Tooltip("动画 Close 后，若此时间内没有新的 Open/攻击续接，再关闭判定盒。")]
+    [SerializeField] private float idleCloseSeconds = 0.3f;
 
     [Header("Facing")]
     [SerializeField] private bool requireForwardArc = true;
@@ -34,6 +36,7 @@ public class AttackHitbox : MonoBehaviour
 
     private readonly HashSet<Hurtbox> hitTargets = new HashSet<Hurtbox>();
     private Coroutine disableRoutine;
+    private Coroutine idleCloseRoutine;
     private bool impactPlayedThisSwing;
     private void Awake()
     {
@@ -46,6 +49,7 @@ public class AttackHitbox : MonoBehaviour
     {
         damage = Mathf.Max(0, damage);
         activeSeconds = Mathf.Max(0.01f, activeSeconds);
+        idleCloseSeconds = Mathf.Max(0f, idleCloseSeconds);
         forwardArcDegrees = Mathf.Clamp(forwardArcDegrees, 1f, 360f);
         hitStopSeconds = Mathf.Max(0f, hitStopSeconds);
         hitStopTimeScale = Mathf.Clamp(hitStopTimeScale, 0.01f, 1f);
@@ -78,6 +82,8 @@ public class AttackHitbox : MonoBehaviour
         if (col == null)
             col = GetComponent<Collider>();
 
+        CancelIdleClose();
+
         if (disableRoutine != null)
         {
             StopCoroutine(disableRoutine);
@@ -90,14 +96,51 @@ public class AttackHitbox : MonoBehaviour
         col.enabled = true;
     }
 
+    /// <summary>动画挥砍结束：不立刻关盒，等待 idle 时间且没有续攻再关。</summary>
+    public void ScheduleIdleClose(float seconds = -1f)
+    {
+        if (!active)
+            return;
+
+        if (seconds < 0f)
+            seconds = idleCloseSeconds;
+
+        if (seconds <= 0f)
+        {
+            CloseHitbox();
+            return;
+        }
+
+        CancelIdleClose();
+        idleCloseRoutine = StartCoroutine(IdleCloseAfter(seconds));
+    }
+
+    public void CancelIdleClose()
+    {
+        if (idleCloseRoutine == null)
+            return;
+
+        StopCoroutine(idleCloseRoutine);
+        idleCloseRoutine = null;
+    }
+
     public void CloseHitbox()
     {
+        CancelIdleClose();
+
         if (disableRoutine != null)
         {
             StopCoroutine(disableRoutine);
             disableRoutine = null;
         }
 
+        SetColliderActive(false);
+    }
+
+    private IEnumerator IdleCloseAfter(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        idleCloseRoutine = null;
         SetColliderActive(false);
     }
 

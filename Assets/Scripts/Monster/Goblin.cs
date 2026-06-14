@@ -58,7 +58,7 @@ public class Goblin : Monster
     [SerializeField] private float dropScatterRadius = 0.35f;
 
     [Header("Hit Reaction")]
-    [SerializeField] private float hitStaggerSeconds = 0.12f;
+    [SerializeField] private float hitStaggerSeconds = 0.3f;
     [SerializeField] private float hitKnockbackSpeed = 2.2f;
     [SerializeField] private float hitKnockbackUpSpeed = 0.25f;
     [SerializeField] private float hitKnockbackDamping = 14f;
