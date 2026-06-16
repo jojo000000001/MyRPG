@@ -2907,7 +2907,7 @@ MonoBehaviour:
   hitTriggerParam: Hit
   hitBoolParam: 
   hitBoolSeconds: 0.05
-  cancelAttackOnHit: 1
+  cancelAttackOnHit: 0
   useFallbackHitbox: 1
   fallbackHitboxDelay: 0.2
   fallbackHitboxSeconds: 0.12

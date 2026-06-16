@@ -29,7 +29,7 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField] private string hitTriggerParam = "Hit";
     [SerializeField] private string hitBoolParam = "";
     [SerializeField] private float hitBoolSeconds = 0.05f;
-    [SerializeField] private bool cancelAttackOnHit = true;
+    [SerializeField] private bool cancelAttackOnHit = false;
 
     [Header("Attack Hitbox")]
     [SerializeField] private bool useFallbackHitbox = true;
@@ -138,7 +138,18 @@ public class Player : MonoBehaviour, IDamageable
     // 连击系统：在 comboWindow 内连续点击会推进到下一段攻击。
     private int comboCount = 0;
     public float comboWindow = 0.8f;
+    [Tooltip("两次攻击输入的最小间隔，避免一次连按触发多段 Trigger。")]
+    [SerializeField] private float attackInputMinInterval = 0.1f;
+    [Tooltip("连击输入缓冲：在此时间内按下的攻击键会在间隔结束后自动衔接。")]
+    [SerializeField] private float attackInputBufferTime = 0.22f;
     private float comboExpiresAt = -999f;
+    private float lastAttackInputAt = -999f;
+    private bool pendingComboInput;
+    private float pendingComboInputExpiresAt = -999f;
+
+    private static readonly int Atk1Hash = Animator.StringToHash("Atk1");
+    private static readonly int Atk2Hash = Animator.StringToHash("Atk2");
+    private static readonly int Atk3Hash = Animator.StringToHash("Atk3");
 
     private void OnValidate()
     {
@@ -153,6 +164,8 @@ public class Player : MonoBehaviour, IDamageable
         attackAssistRadius = Mathf.Max(0f, attackAssistRadius);
         attackFaceTurnSpeed = Mathf.Max(1f, attackFaceTurnSpeed);
         attackYawOffset = Mathf.Clamp(attackYawOffset, -45f, 45f);
+        attackInputMinInterval = Mathf.Max(0f, attackInputMinInterval);
+        attackInputBufferTime = Mathf.Max(0f, attackInputBufferTime);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
@@ -393,30 +406,83 @@ public class Player : MonoBehaviour, IDamageable
         if (comboCount != 0 && Time.time > comboExpiresAt)
         {
             comboCount = 0;
+            pendingComboInput = false;
             CancelQueuedAttackHitbox();
             animator.SetBool("IsAttacking", false);
         }
 
         // 鼠标左键推进三段攻击，并开启一次攻击判定盒。
         if (Input.GetMouseButtonDown(0))
+            RegisterComboAttackInput();
+
+        TryConsumePendingComboInput();
+    }
+
+    private void RegisterComboAttackInput()
+    {
+        pendingComboInput = true;
+        pendingComboInputExpiresAt = Time.time + attackInputBufferTime;
+        TryConsumePendingComboInput();
+    }
+
+    private void TryConsumePendingComboInput()
+    {
+        if (!pendingComboInput || Time.time > pendingComboInputExpiresAt)
         {
-            ApplyAttackAssistFacing(snap: true);
+            pendingComboInput = false;
+            return;
+        }
 
-            animator.SetBool("IsAttacking", true);
+        if (!TryAdvanceComboAttack())
+            return;
 
-            comboCount++;
-            if (comboCount > 3) comboCount = 1;
+        pendingComboInput = false;
 
-            if (comboCount == 1) animator.SetTrigger("Atk1");
-            if (comboCount == 2) animator.SetTrigger("Atk2");
-            if (comboCount == 3) animator.SetTrigger("Atk3");
+        ApplyAttackAssistFacing(snap: true);
 
-            comboExpiresAt = Time.time + comboWindow;
+        animator.SetBool("IsAttacking", true);
+        comboExpiresAt = Time.time + comboWindow;
 
-            if (attackHitbox != null)
-                attackHitbox.CancelIdleClose();
+        if (attackHitbox != null)
+            attackHitbox.CancelIdleClose();
 
-            QueueAttackHitbox();
+        QueueAttackHitbox();
+    }
+
+    private bool TryAdvanceComboAttack()
+    {
+        if (animator == null)
+            return false;
+
+        if (Time.time - lastAttackInputAt < attackInputMinInterval)
+            return false;
+
+        lastAttackInputAt = Time.time;
+        comboCount++;
+        if (comboCount > 3)
+            comboCount = 1;
+
+        FireComboTrigger(comboCount);
+        return true;
+    }
+
+    private void FireComboTrigger(int step)
+    {
+        animator.ResetTrigger(Atk1Hash);
+        animator.ResetTrigger(Atk2Hash);
+        animator.ResetTrigger(Atk3Hash);
+
+        switch (step)
+        {
+            case 1:
+                animator.SetTrigger(Atk1Hash);
+                break;
+            case 2:
+                animator.SetTrigger(Atk2Hash);
+                break;
+            case 3:
+                animator.SetTrigger(Atk3Hash);
+                break;
         }
     }
 

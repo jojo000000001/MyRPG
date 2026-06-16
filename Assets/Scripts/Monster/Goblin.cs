@@ -1,10 +1,11 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
 /// 敌人的有限状态机：负责巡逻、追击、攻击、返回出生点和死亡流程。
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class Goblin : Monster
+public class Goblin : Monster, IPoolable
 {
     // 目标检测相关参数：控制发现、丢失、追击范围以及视野/视线判断。
     [Header("Target")]
@@ -89,6 +90,8 @@ public class Goblin : Monster
     private Vector3 hitKnockbackVelocity;
     private float hitStaggerUntil = -999f;
     private bool lootDropped;
+    private bool spawnInitialized;
+    private Coroutine releaseRoutine;
 
     // 对外暴露当前状态名称，方便 UI、调试面板或测试读取。
     public string CurrentStateName => currentState.ToString();
@@ -108,10 +111,55 @@ public class Goblin : Monster
         }
     }
 
-    // 记录出生点，尝试获取目标，并进入初始巡逻等待状态。
     private void Start()
     {
+        if (!spawnInitialized)
+            ResetForSpawn();
+    }
+
+    public void OnSpawnedFromPool()
+    {
+        ResetForSpawn();
+    }
+
+    public void OnReturnedToPool()
+    {
+        if (releaseRoutine != null)
+        {
+            StopCoroutine(releaseRoutine);
+            releaseRoutine = null;
+        }
+
+        StopAllCoroutines();
+        currentState = State.Dead;
+        verticalVelocity = Vector3.zero;
+        hitKnockbackVelocity = Vector3.zero;
+    }
+
+    private void ResetForSpawn()
+    {
+        spawnInitialized = true;
+        hp = Mathf.Max(1, maxHp);
+        lastHitTime = -999f;
+        lootDropped = false;
+        waitUntil = 0f;
+        attackStartedAt = -999f;
+        nextAttackAt = -999f;
+        attackDamageApplied = false;
+        hitKnockbackVelocity = Vector3.zero;
+        hitStaggerUntil = -999f;
+        verticalVelocity = Vector3.zero;
         home = transform.position;
+
+        if (characterController != null)
+            characterController.enabled = true;
+
+        if (animator != null)
+        {
+            animator.Rebind();
+            animator.Update(0f);
+        }
+
         AcquireTarget();
         EnterState(State.PatrolWait);
     }
@@ -652,7 +700,21 @@ public class Goblin : Monster
         if (characterController != null)
             characterController.enabled = false;
 
-        Destroy(gameObject, destroyAfterDeathSeconds);
+        if (releaseRoutine != null)
+            StopCoroutine(releaseRoutine);
+
+        releaseRoutine = StartCoroutine(ReleaseAfterDelay(destroyAfterDeathSeconds));
+    }
+
+    private IEnumerator ReleaseAfterDelay(float delay)
+    {
+        if (delay > 0f)
+            yield return new WaitForSeconds(delay);
+
+        releaseRoutine = null;
+
+        if (!PooledObject.TryRelease(gameObject))
+            Destroy(gameObject);
     }
 
     private void DropLoot()
@@ -673,7 +735,8 @@ public class Goblin : Monster
         Vector2 scatter = Random.insideUnitCircle * dropScatterRadius;
         Vector3 dropPosition = transform.position + dropOffset + new Vector3(scatter.x, 0f, scatter.y);
         Quaternion dropRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-        Instantiate(dropPrefab, dropPosition, dropRotation);
+        GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        pool.Get(dropPrefab, dropPosition, dropRotation);
     }
 
     private GameObject PickDropPrefab(bool preferWeapon)

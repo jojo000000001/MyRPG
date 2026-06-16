@@ -1,12 +1,12 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class ConsumablePickup : MonoBehaviour
+public sealed class ConsumablePickup : MonoBehaviour, IPoolable
 {
     [Header("Item")]
     [SerializeField] private ItemSO item;
-        [SerializeField] private bool addToInventory = true;
-[SerializeField] private bool consumeOnPickup = true;
+    [SerializeField] private bool addToInventory = true;
+    [SerializeField] private bool consumeOnPickup = true;
     [SerializeField] private bool destroyOnPickup = true;
 
     [Header("Visual")]
@@ -20,6 +20,17 @@ public sealed class ConsumablePickup : MonoBehaviour
     private bool hasVisualBase;
 
     public ItemSO Item => item;
+
+    public void OnSpawnedFromPool()
+    {
+        transform.localRotation = Quaternion.identity;
+        hasVisualBase = false;
+        CacheVisualBase();
+    }
+
+    public void OnReturnedToPool()
+    {
+    }
 
     private void Awake()
     {
@@ -82,7 +93,10 @@ private void OnTriggerEnter(Collider other)
         }
 
         if (pickedUp && destroyOnPickup)
-            Destroy(gameObject);
+        {
+            if (!PooledObject.TryRelease(gameObject))
+                Destroy(gameObject);
+        }
     }
 
     private void ApplyTo(Player player)

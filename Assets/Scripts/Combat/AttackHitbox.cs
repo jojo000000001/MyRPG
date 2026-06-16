@@ -30,6 +30,9 @@ public class AttackHitbox : MonoBehaviour
     [SerializeField] private bool requireForwardArc = true;
     [SerializeField, Range(1f, 360f)] private float forwardArcDegrees = 150f;
 
+    [Header("Debug")]
+    [SerializeField] private bool drawActiveGizmo = true;
+
     // 运行时缓存触发器，并用 active 控制本次攻击是否还能命中。
     private Collider col;
     private bool active;
@@ -38,6 +41,7 @@ public class AttackHitbox : MonoBehaviour
     private Coroutine disableRoutine;
     private Coroutine idleCloseRoutine;
     private bool impactPlayedThisSwing;
+
     private void Awake()
     {
         col = GetComponent<Collider>();
@@ -94,6 +98,7 @@ public class AttackHitbox : MonoBehaviour
         impactPlayedThisSwing = false;
         hitTargets.Clear();
         col.enabled = true;
+        ProcessOverlappingHurtboxes();
     }
 
     /// <summary>动画挥砍结束：不立刻关盒，等待 idle 时间且没有续攻再关。</summary>
@@ -164,16 +169,47 @@ public class AttackHitbox : MonoBehaviour
             hitTargets.Clear();
     }
 
-
-    // 触发命中时，优先寻找对方身上的 Hurtbox，再把伤害数据交给真正的 IDamageable。
     private void OnTriggerEnter(Collider other)
     {
-        if (!active) return;
-        if (other.transform.root == transform.root) return;
+        TryHitCollider(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        TryHitCollider(other);
+    }
+
+    private void ProcessOverlappingHurtboxes()
+    {
+        if (!active || col == null)
+            return;
+
+        Bounds bounds = col.bounds;
+        Collider[] overlaps = Physics.OverlapBox(
+            bounds.center,
+            bounds.extents,
+            col.transform.rotation,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < overlaps.Length; i++)
+            TryHitCollider(overlaps[i]);
+    }
+
+    private void TryHitCollider(Collider other)
+    {
+        if (!active || other == null)
+            return;
+
+        if (other == col || other.transform.root == transform.root)
+            return;
 
         Hurtbox hurtbox = other.GetComponent<Hurtbox>() ?? other.GetComponentInParent<Hurtbox>();
-        if (hurtbox == null || hitTargets.Contains(hurtbox)) return;
-        if (!IsInsideForwardArc(hurtbox.transform.position)) return;
+        if (hurtbox == null || hitTargets.Contains(hurtbox))
+            return;
+
+        if (!IsInsideForwardArc(hurtbox.transform.position))
+            return;
 
         Vector3 hitPoint = other.ClosestPoint(transform.position);
         Vector3 direction = hurtbox.transform.position - transform.root.position;
@@ -184,7 +220,8 @@ public class AttackHitbox : MonoBehaviour
             direction = transform.root.forward;
 
         DamageInfo damageInfo = new DamageInfo(GetDamageAmount(), transform.root.gameObject, hitPoint, direction, damageType);
-        if (!hurtbox.ApplyDamage(damageInfo)) return;
+        if (!hurtbox.ApplyDamage(damageInfo))
+            return;
 
         hitTargets.Add(hurtbox);
         PlayImpactOnce();
@@ -237,5 +274,16 @@ public class AttackHitbox : MonoBehaviour
             cameraShakeSeconds,
             cameraShakeStrength,
             cameraShakeFrequency);
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!drawActiveGizmo || !Application.isPlaying || !active || col == null)
+            return;
+
+        Gizmos.color = new Color(1f, 0.4f, 0.1f, 0.35f);
+        Bounds bounds = col.bounds;
+        Gizmos.matrix = Matrix4x4.identity;
+        Gizmos.DrawCube(bounds.center, bounds.size);
     }
 }

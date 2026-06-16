@@ -38,12 +38,14 @@ public class GoblinSpawner : MonoBehaviour
 
         int count = Mathf.Max(1, spawnCount);
         Transform parent = keepSpawnedAsChild ? transform : null;
+        GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        pool.Prewarm(goblinPrefab, count);
 
         for (int i = 0; i < count; i++)
         {
             Vector3 offset = GetSpawnOffset(i, count);
             Vector3 position = transform.position + offset;
-            GameObject instance = Instantiate(goblinPrefab, position, transform.rotation, parent);
+            GameObject instance = pool.Get(goblinPrefab, position, transform.rotation, parent);
             instance.name = $"{goblinPrefab.name}_{i + 1}";
             spawnedGoblins.Add(instance);
 

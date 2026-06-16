@@ -101,9 +101,17 @@ public static class GenerateLeftBiasAttackClips
 
             AnimationClip existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(outputPath);
             if (existing != null)
+            {
                 EditorUtility.CopySerialized(baked, existing);
+                if (source.Style == BakeStyle.LeftBiasWithWeaponArc)
+                    SetHitboxEvents(existing, 0.24f, 0.5f);
+            }
             else
+            {
+                if (source.Style == BakeStyle.LeftBiasWithWeaponArc)
+                    SetHitboxEvents(baked, 0.24f, 0.5f);
                 AssetDatabase.CreateAsset(baked, outputPath);
+            }
 
             Object.DestroyImmediate(baked);
             Debug.Log($"Generated combat attack clip: {outputPath}", AssetDatabase.LoadAssetAtPath<AnimationClip>(outputPath));
@@ -201,9 +209,9 @@ public static class GenerateLeftBiasAttackClips
             float slash = SlashBottomLeftWeight(normalizedTime);
             float fade = ClipEndFade(normalizedTime);
 
-            euler.x += fade * strength * (windup * -10f + slash * 42f);
-            euler.y += fade * strength * (windup * 4f + slash * -38f);
-            euler.z += fade * strength * (windup * 3f + slash * -18f);
+            euler.x += fade * strength * (windup * -10f + slash * 40f);
+            euler.y += fade * strength * (windup * 4f + slash * -26f);
+            euler.z += fade * strength * (windup * 3f + slash * -10f);
 
             rotation = Quaternion.Euler(euler);
             SetRotationKey(curveX, time, rotation.x);
@@ -295,11 +303,11 @@ public static class GenerateLeftBiasAttackClips
     private static void ApplyAttack02SlashExtend(AnimationClip clip)
     {
         float length = Mathf.Max(clip.length, 0.0001f);
-        ApplyMuscleSlashDelta(clip, "Right Arm Down-Up", length, -0.2f);
-        ApplyMuscleSlashDelta(clip, "Right Arm Front-Back", length, -0.14f);
-        ApplyMuscleSlashDelta(clip, "Right Hand Down-Up", length, -0.12f);
-        ApplyMuscleSlashDelta(clip, "Right Hand In-Out", length, -0.09f);
-        ApplyMuscleSlashDelta(clip, "Right Forearm Stretch", length, 0.1f);
+        ApplyMuscleSlashDelta(clip, "Right Arm Down-Up", length, -0.18f);
+        ApplyMuscleSlashDelta(clip, "Right Arm Front-Back", length, -0.2f);
+        ApplyMuscleSlashDelta(clip, "Right Hand Down-Up", length, -0.1f);
+        ApplyMuscleSlashDelta(clip, "Right Hand In-Out", length, -0.05f);
+        ApplyMuscleSlashDelta(clip, "Right Forearm Stretch", length, 0.12f);
     }
 
     /// <summary>Reach forward during the slash so the blade stays on target while finishing lower-left.</summary>
@@ -310,9 +318,33 @@ public static class GenerateLeftBiasAttackClips
         const float defaultY = -0.0073f;
         const float defaultZ = -0.0036f;
 
-        ApplyPositionSlashDelta(clip, "m_LocalPosition.x", length, -0.028f, defaultX);
+        ApplyPositionSlashDelta(clip, "m_LocalPosition.x", length, -0.012f, defaultX);
         ApplyPositionSlashDelta(clip, "m_LocalPosition.y", length, -0.012f, defaultY);
-        ApplyPositionSlashDelta(clip, "m_LocalPosition.z", length, 0.05f, defaultZ);
+        ApplyPositionSlashDelta(clip, "m_LocalPosition.z", length, 0.07f, defaultZ);
+    }
+
+    private static void SetHitboxEvents(AnimationClip clip, float openTime, float closeTime)
+    {
+        float length = Mathf.Max(clip.length, 0.0001f);
+        openTime = Mathf.Clamp(openTime, 0f, length);
+        closeTime = Mathf.Clamp(closeTime, openTime, length);
+
+        clip.events = new[]
+        {
+            new AnimationEvent
+            {
+                time = openTime,
+                functionName = "AttackHitboxOpen",
+            },
+            new AnimationEvent
+            {
+                time = closeTime,
+                functionName = "AttackHitboxClose",
+            },
+        };
+
+        AnimationUtility.SetAnimationEvents(clip, clip.events);
+        EditorUtility.SetDirty(clip);
     }
 
     private static void ApplyPositionSlashDelta(
