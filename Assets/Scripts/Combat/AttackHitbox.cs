@@ -20,6 +20,13 @@ public class AttackHitbox : MonoBehaviour
     [SerializeField] private float cameraShakeSeconds = 0.12f;
     [SerializeField] private float cameraShakeStrength = 0.075f;
     [SerializeField] private float cameraShakeFrequency = 38f;
+
+    [Header("Audio")]
+    [SerializeField] private bool playHitSound = true;
+    [SerializeField] private AudioClip hitSoundClip;
+    [SerializeField, Range(0f, 1f)] private float hitSoundVolume = 0.85f;
+    [SerializeField] private Vector2 hitSoundPitchRange = new Vector2(0.96f, 1.04f);
+
     [Header("Timing")]
     [SerializeField] private float activeSeconds = 0.12f;
     [SerializeField] private bool closeAfterFirstHit;
@@ -60,6 +67,9 @@ public class AttackHitbox : MonoBehaviour
         cameraShakeSeconds = Mathf.Max(0f, cameraShakeSeconds);
         cameraShakeStrength = Mathf.Max(0f, cameraShakeStrength);
         cameraShakeFrequency = Mathf.Max(1f, cameraShakeFrequency);
+        hitSoundVolume = Mathf.Clamp01(hitSoundVolume);
+        hitSoundPitchRange.x = Mathf.Max(0.1f, hitSoundPitchRange.x);
+        hitSoundPitchRange.y = Mathf.Max(hitSoundPitchRange.x, hitSoundPitchRange.y);
     }
 
 
@@ -264,16 +274,45 @@ public class AttackHitbox : MonoBehaviour
 
     private void PlayImpactOnce()
     {
-        if (!playImpactFeedback || impactPlayedThisSwing)
+        if (impactPlayedThisSwing)
             return;
 
         impactPlayedThisSwing = true;
+        PlayHitSound();
+
+        if (!playImpactFeedback)
+            return;
+
         HitImpactManager.PlayImpact(
             hitStopSeconds,
             hitStopTimeScale,
             cameraShakeSeconds,
             cameraShakeStrength,
             cameraShakeFrequency);
+    }
+
+    private void PlayHitSound()
+    {
+        if (!playHitSound || hitSoundClip == null)
+            return;
+
+        Vector3 position = transform.root.position + Vector3.up * 1.2f;
+        float pitch = Random.Range(hitSoundPitchRange.x, hitSoundPitchRange.y);
+
+        var temp = new GameObject("AttackHitSfx");
+        temp.transform.position = position;
+
+        AudioSource source = temp.AddComponent<AudioSource>();
+        source.clip = hitSoundClip;
+        source.volume = hitSoundVolume;
+        source.pitch = pitch;
+        source.spatialBlend = 0.35f;
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = 1f;
+        source.maxDistance = 24f;
+        source.Play();
+
+        Destroy(temp, hitSoundClip.length / Mathf.Max(0.01f, pitch) + 0.05f);
     }
 
     private void OnDrawGizmos()

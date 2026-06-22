@@ -663,7 +663,7 @@ public class Player : MonoBehaviour, IDamageable
         if (!Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out Monster enemy, out _))
             return false;
 
-        Vector3 toEnemy = enemy.transform.position - transform.position;
+        Vector3 toEnemy = enemy.GetAttackAssistFacingPoint() - transform.position;
         toEnemy.y = 0f;
         if (toEnemy.sqrMagnitude < 0.0001f)
             return false;

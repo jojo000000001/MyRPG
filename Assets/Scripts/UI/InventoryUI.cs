@@ -118,8 +118,10 @@ public sealed class InventoryUI : MonoBehaviour
     {
         isOpen = value;
 
-        if (panelObject != null)
-            panelObject.SetActive(isOpen);
+        if (panelObject == null)
+            ResolveCanonicalPanel(removeDuplicates: false);
+
+        ApplyPanelActiveState();
 
         if (!isOpen)
             ClearDrag();
@@ -128,6 +130,19 @@ public sealed class InventoryUI : MonoBehaviour
             Refresh();
 
         ApplyCursorState();
+    }
+
+    private void ApplyPanelActiveState()
+    {
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            if (child.name != PanelName)
+                continue;
+
+            bool visible = isOpen && panelObject != null && child.gameObject == panelObject;
+            child.gameObject.SetActive(visible);
+        }
     }
 
     private void ApplyCursorState()
@@ -254,8 +269,41 @@ public sealed class InventoryUI : MonoBehaviour
             BindExistingView();
         }
 
+        ResolveCanonicalPanel(removeDuplicates: true);
         ConfigureCloseButton();
         BindSlots();
+    }
+
+    private void ResolveCanonicalPanel(bool removeDuplicates)
+    {
+        GameObject canonical = null;
+
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            if (child.name != PanelName)
+                continue;
+
+            if (child.Find(GridName) == null || child.Find(DetailName) == null)
+                continue;
+
+            if (canonical == null)
+            {
+                canonical = child.gameObject;
+                continue;
+            }
+
+            if (!removeDuplicates)
+                continue;
+
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+
+        if (canonical != null)
+            panelObject = canonical;
     }
 
     private bool BindExistingView()

@@ -1477,6 +1477,7 @@ GameObject:
   m_Component:
   - component: {fileID: 984106048}
   - component: {fileID: 984106047}
+  - component: {fileID: 984106049}
   m_Layer: 0
   m_Name: CameraRig
   m_TagString: Untagged
@@ -1512,6 +1513,23 @@ MonoBehaviour:
   combatYawFollowSmooth: 5.5
   pivot: {fileID: 0}
   cam: {fileID: 0}
+--- !u!114 &984106049
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 984106046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c4e9a2b1f8d6e34a9b0c1d2e3f45678, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseRig: {fileID: 984106047}
+  yawSpeed: 420
+  pitchSpeed: 120
+  minPitch: -10
+  maxPitch: 35
 --- !u!4 &984106048
 Transform:
   m_ObjectHideFlags: 0

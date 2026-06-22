@@ -1477,6 +1477,7 @@ GameObject:
   m_Component:
   - component: {fileID: 984106048}
   - component: {fileID: 984106047}
+  - component: {fileID: 984106049}
   m_Layer: 0
   m_Name: CameraRig
   m_TagString: Untagged
@@ -1512,6 +1513,23 @@ MonoBehaviour:
   combatYawFollowSmooth: 5.5
   pivot: {fileID: 0}
   cam: {fileID: 0}
+--- !u!114 &984106049
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 984106046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c4e9a2b1f8d6e34a9b0c1d2e3f45678, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseRig: {fileID: 984106047}
+  yawSpeed: 420
+  pitchSpeed: 120
+  minPitch: -10
+  maxPitch: 35
 --- !u!4 &984106048
 Transform:
   m_ObjectHideFlags: 0
@@ -2533,6 +2551,63 @@ MonoBehaviour:
   flowUI: {fileID: 1999000003}
   killsToWin: 3
   defeatDelaySeconds: 0.6
+--- !u!1001 &1957253058239808720
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 6.934443
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.77584267
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 13.191539
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.17603357
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9843842
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: -159.722
+      objectReference: {fileID: 0}
+    - target: {fileID: 897717922273183787, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 927075392533154369, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
+      propertyPath: m_Name
+      value: DragonBoss
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 837b8d6e94aa0654e8f78b73ec45ff64, type: 3}
 --- !u!1001 &2247946494811257750
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2725,3 +2800,4 @@ SceneRoots:
   - {fileID: 209859593}
   - {fileID: 889524883}
   - {fileID: 1022764367}
+  - {fileID: 1957253058239808720}

@@ -112,6 +112,14 @@ public sealed class DemoGameManager : MonoBehaviour
         flowUI?.UpdateProgress(enemiesKilled, target);
     }
 
+    public void NotifyBossDefeated()
+    {
+        if (gameEnded)
+            return;
+
+        Win();
+    }
+
     public void Restart()
     {
         Time.timeScale = 1f;

@@ -32,6 +32,39 @@ public abstract class Monster : MonoBehaviour, IDamageable
 
     public event Action Died;
 
+    /// <summary>
+    /// 玩家攻击辅助瞄准点。大体型 Boss 可覆写为头颈附近。
+    /// </summary>
+    public virtual Vector3 GetAttackAssistFacingPoint() => transform.position;
+
+    /// <summary>
+    /// 玩家攻击辅助的额外搜索半径（米）。
+    /// </summary>
+    public virtual float GetAttackAssistRangeBonus() => 0f;
+
+    protected static float GetPlanarDistance(Vector3 a, Vector3 b)
+    {
+        a.y = 0f;
+        b.y = 0f;
+        return Vector3.Distance(a, b);
+    }
+
+    protected static void RotateYawToward(Transform self, Vector3 worldDirection, float degreesPerSecond, bool snap = false)
+    {
+        if (worldDirection.sqrMagnitude < 0.0001f)
+            return;
+
+        float targetYaw = Mathf.Atan2(worldDirection.x, worldDirection.z) * Mathf.Rad2Deg;
+        if (snap)
+        {
+            self.rotation = Quaternion.Euler(0f, targetYaw, 0f);
+            return;
+        }
+
+        float yaw = Mathf.MoveTowardsAngle(self.eulerAngles.y, targetYaw, degreesPerSecond * Time.deltaTime);
+        self.rotation = Quaternion.Euler(0f, yaw, 0f);
+    }
+
     protected virtual void Awake()
     {
         hp = Mathf.Max(1, maxHp);
@@ -60,8 +93,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
         nearest = null;
         distance = float.MaxValue;
 
-        float maxRadiusSq = maxRadius * maxRadius;
-        float bestSq = maxRadiusSq;
+        float bestSq = float.MaxValue;
 
         for (int i = ActiveInstances.Count - 1; i >= 0; i--)
         {
@@ -75,7 +107,16 @@ public abstract class Monster : MonoBehaviour, IDamageable
             if (monster.IsDead)
                 continue;
 
-            float distSq = (monster.transform.position - origin).sqrMagnitude;
+            float allowedRadius = maxRadius + monster.GetAttackAssistRangeBonus();
+            float allowedRadiusSq = allowedRadius * allowedRadius;
+
+            Vector3 anchor = monster.GetAttackAssistFacingPoint();
+            Vector3 toOrigin = origin - anchor;
+            toOrigin.y = 0f;
+            float distSq = toOrigin.sqrMagnitude;
+            if (distSq > allowedRadiusSq)
+                continue;
+
             if (distSq > bestSq)
                 continue;
 

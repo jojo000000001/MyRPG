@@ -5,29 +5,29 @@ using UnityEngine.UI;
 /// 怪物头顶血条：运行时自动创建世界空间 Canvas，并根据 Monster 血量更新填充宽度。
 /// </summary>
 [RequireComponent(typeof(Monster))]
-public sealed class MonsterHealthBar : MonoBehaviour
+public class MonsterHealthBar : MonoBehaviour
 {
     private const string BarRootName = "MonsterHealthBar";
     private const string FillAreaName = "FillArea";
     private const string FillName = "Fill";
 
     [Header("Layout")]
-    [SerializeField] private Vector3 worldOffset = new Vector3(0f, 2.2f, 0f);
-    [SerializeField] private Vector2 barSize = new Vector2(1.25f, 0.16f);
-    [SerializeField] private float pixelsPerUnit = 100f;
-    [SerializeField] private float borderPixels = 3f;
-    [SerializeField] private int sortingOrder = 50;
+    [SerializeField] protected Vector3 worldOffset = new Vector3(0f, 2.2f, 0f);
+    [SerializeField] protected Vector2 barSize = new Vector2(1.25f, 0.16f);
+    [SerializeField] protected float pixelsPerUnit = 100f;
+    [SerializeField] protected float borderPixels = 3f;
+    [SerializeField] protected int sortingOrder = 50;
 
     [Header("Display")]
-    [SerializeField] private bool hideWhenFull = false;
-    [SerializeField] private bool hideOnDeath = true;
-    [SerializeField] private float smoothSpeed = 12f;
+    [SerializeField] protected bool hideWhenFull = false;
+    [SerializeField] protected bool hideOnDeath = true;
+    [SerializeField] protected float smoothSpeed = 12f;
 
     [Header("Color")]
-    [SerializeField] private Color frameColor = new Color(0.03f, 0.02f, 0.02f, 0.85f);
-    [SerializeField] private Color backgroundColor = new Color(0.18f, 0.04f, 0.04f, 0.85f);
-    [SerializeField] private Color highHealthColor = new Color(0.2f, 0.85f, 0.25f, 0.95f);
-    [SerializeField] private Color lowHealthColor = new Color(0.95f, 0.12f, 0.08f, 0.95f);
+    [SerializeField] protected Color frameColor = new Color(0.03f, 0.02f, 0.02f, 0.85f);
+    [SerializeField] protected Color backgroundColor = new Color(0.18f, 0.04f, 0.04f, 0.85f);
+    [SerializeField] protected Color highHealthColor = new Color(0.2f, 0.85f, 0.25f, 0.95f);
+    [SerializeField] protected Color lowHealthColor = new Color(0.95f, 0.12f, 0.08f, 0.95f);
 
     private Monster monster;
     private RectTransform barRoot;
@@ -38,7 +38,7 @@ public sealed class MonsterHealthBar : MonoBehaviour
     private Camera viewCamera;
     private float displayedHealth01 = 1f;
 
-    private void Awake()
+    protected virtual void Awake()
     {
         monster = GetComponent<Monster>();
         EnsureBar();
