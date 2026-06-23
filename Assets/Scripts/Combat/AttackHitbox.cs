@@ -8,9 +8,12 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class AttackHitbox : MonoBehaviour
 {
-    // 没有攻击者属性时使用的兜底伤害。
+    [Header("伤害")]
+    [Tooltip("固定伤害值；启用「使用攻击者攻击力」时作为备用。")]
     [SerializeField] private int damage = 10;
+    [Tooltip("伤害类型：物理/魔法/真实。")]
     [SerializeField] private DamageType damageType = DamageType.Physical;
+    [Tooltip("是否使用攻击者的攻击力作为基础伤害。")]
     [SerializeField] private bool useSourceAttackPower = true;
     
     [Header("Impact")]
@@ -229,18 +232,35 @@ public class AttackHitbox : MonoBehaviour
         else
             direction = transform.root.forward;
 
-        DamageInfo damageInfo = new DamageInfo(GetDamageAmount(), transform.root.gameObject, hitPoint, direction, damageType);
+        int baseDamage = GetBaseDamageAmount();
+        bool isCritical = false;
+        IDamageable target = hurtbox.GetDamageable();
+        int targetDefense = CombatDamageFormulas.GetTargetDefense(target, damageType);
+
+        Player player = transform.root.GetComponent<Player>();
+        int finalDamage = player != null
+            ? player.ResolveOutgoingDamage(baseDamage, targetDefense, damageType, out isCritical)
+            : Mathf.Max(0, baseDamage);
+
+        DamageInfo damageInfo = new DamageInfo(
+            finalDamage,
+            transform.root.gameObject,
+            hitPoint,
+            direction,
+            damageType,
+            isCritical);
         if (!hurtbox.ApplyDamage(damageInfo))
             return;
 
         hitTargets.Add(hurtbox);
         PlayImpactOnce();
+        TryApplyLifeSteal(finalDamage);
 
         if (closeAfterFirstHit)
             CloseHitbox();
     }
 
-    private int GetDamageAmount()
+    private int GetBaseDamageAmount()
     {
         if (useSourceAttackPower)
         {
@@ -250,6 +270,14 @@ public class AttackHitbox : MonoBehaviour
         }
 
         return Mathf.Max(0, damage);
+    }
+
+    private void TryApplyLifeSteal(int damageDealt)
+    {
+        if (damageDealt <= 0)
+            return;
+
+        transform.root.GetComponent<Player>()?.TryApplyLifeStealFromAttack(damageDealt);
     }
 
 

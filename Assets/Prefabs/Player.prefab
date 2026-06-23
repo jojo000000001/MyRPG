@@ -2906,6 +2906,19 @@ MonoBehaviour:
   magicResistance: 5
   attackPower: 2
   damageInvulnSeconds: 0.3
+  level: 1
+  experience: 0
+  baseXpToNextLevel: 100
+  xpGrowthPerLevel: 1.35
+  bonusMaxHpPerLevel: 8
+  bonusAttackPerLevel: 1
+  bonusDamagePercentPerLevel: 2
+  bonusCritChancePerLevel: 0.01
+  bonusLifeStealPerLevel: 0.005
+  damageBonusPercent: 0
+  critChance: 0.05
+  critDamageMultiplier: 1.5
+  lifeStealPercent: 0.02
   equippedWeapon: {fileID: 0}
   enableHitFeedback: 1
   hitTriggerParam: Hit

@@ -3,25 +3,58 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 玩家控制器：处理移动、镜头相对转向、跳跃手感以及三段连击攻击。
-/// </summary>
-/// <summary>
 /// 玩家控制器：处理移动、镜头相对转向、跳跃手感、三段连击以及基础战斗属性。
 /// </summary>
 public class Player : MonoBehaviour, IDamageable
 {
-    // 常用组件缓存，避免每帧重复 GetComponent。
+    public static Player ActiveInstance { get; private set; }
+
     private Animator animator;
     private CharacterController characterController;
     private AttackHitbox attackHitbox;
     private HitFeedback hitFeedback;
 
-    [Header("Stats")]
+    [Header("基础属性")]
+    [Tooltip("最大生命值（基础 HP）。")]
     [SerializeField] private int maxHp = 100;
+    [Tooltip("物理护甲，减伤倍率 = 100 / (100 + 护甲)。")]
     [SerializeField] private int armor = 5;
+    [Tooltip("魔法抗性，减伤倍率 = 100 / (100 + 魔抗)。")]
     [SerializeField] private int magicResistance = 5;
+    [Tooltip("基础攻击力（不含武器加成）。")]
     [SerializeField] private int attackPower = 10;
+    [Tooltip("受击后的无敌时间（秒），期间不会再次扣血。")]
     [SerializeField] private float damageInvulnSeconds = 0.3f;
+
+    [Header("等级与成长")]
+    [Tooltip("当前等级。")]
+    [SerializeField] private int level = 1;
+    [Tooltip("当前经验值。")]
+    [SerializeField] private int experience;
+    [Tooltip("升到下一级所需的基础经验（1 级时使用）。")]
+    [SerializeField] private int baseXpToNextLevel = 100;
+    [Tooltip("每升一级，下一级所需经验的倍率。")]
+    [SerializeField] private float xpGrowthPerLevel = 1.35f;
+    [Tooltip("每升一级增加的最大生命值。")]
+    [SerializeField] private int bonusMaxHpPerLevel = 8;
+    [Tooltip("每升一级增加的基础攻击力。")]
+    [SerializeField] private int bonusAttackPerLevel = 1;
+    [Tooltip("每升一级增加的额外伤害百分比。")]
+    [SerializeField] private float bonusDamagePercentPerLevel = 2f;
+    [Tooltip("每升一级增加的暴击率（0.01 = +1%）。")]
+    [SerializeField] private float bonusCritChancePerLevel = 0.01f;
+    [Tooltip("每升一级增加的吸血比例（0.005 = +0.5%）。")]
+    [SerializeField, Range(0f, 1f)] private float bonusLifeStealPerLevel = 0.005f;
+
+    [Header("战斗修正")]
+    [Tooltip("额外伤害百分比，10 表示 +10%。")]
+    [SerializeField] private float damageBonusPercent;
+    [Tooltip("暴击率（0.05 = 5%）。")]
+    [SerializeField, Range(0f, 1f)] private float critChance = 0.05f;
+    [Tooltip("暴击伤害倍率（1.5 = 150% 伤害）。")]
+    [SerializeField] private float critDamageMultiplier = 1.5f;
+    [Tooltip("攻击吸血比例（0.02 = 造成伤害的 2% 转化为生命）。")]
+    [SerializeField, Range(0f, 1f)] private float lifeStealPercent = 0.02f;
     [Header("Equipment")]
     [SerializeField] private ItemSO equippedWeapon;
     [Header("Hit Feedback")]
@@ -50,14 +83,36 @@ public class Player : MonoBehaviour, IDamageable
 
     private Coroutine queuedHitboxRoutine;
     private bool attackHitboxEventReceived;
+    /// <summary>最大生命值。</summary>
     public int MaxHp => maxHp;
+    /// <summary>当前生命值。</summary>
     public int CurrentHp => currentHp;
+    /// <summary>物理护甲。</summary>
     public int Armor => armor;
+    /// <summary>魔法抗性。</summary>
     public int MagicResistance => magicResistance;
+    /// <summary>当前等级。</summary>
+    public int Level => Mathf.Max(1, level);
+    /// <summary>当前经验值。</summary>
+    public int Experience => Mathf.Max(0, experience);
+    /// <summary>升到下一级所需经验。</summary>
+    public int ExperienceToNextLevel => Mathf.Max(1, Mathf.RoundToInt(baseXpToNextLevel * Mathf.Pow(xpGrowthPerLevel, Level - 1)));
+    /// <summary>额外伤害百分比。</summary>
+    public float DamageBonusPercent => damageBonusPercent;
+    /// <summary>暴击率（0~1）。</summary>
+    public float CritChance => critChance;
+    /// <summary>暴击伤害倍率。</summary>
+    public float CritDamageMultiplier => critDamageMultiplier;
+    /// <summary>攻击吸血比例（0~1）。</summary>
+    public float LifeStealPercent => lifeStealPercent;
     public event Action EquipmentChanged;
+    public event Action StatsChanged;
 
+    /// <summary>基础攻击力（不含武器）。</summary>
     public int BaseAttackPower => Mathf.Max(0, attackPower);
+    /// <summary>武器提供的攻击力加成。</summary>
     public int WeaponAttackBonus => GetWeaponAttackBonus(equippedWeapon);
+    /// <summary>总攻击力（基础 + 武器）。</summary>
     public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus);
     public ItemSO EquippedWeapon => equippedWeapon;
     public bool IsDead => currentHp <= 0;
@@ -166,9 +221,83 @@ public class Player : MonoBehaviour, IDamageable
         attackYawOffset = Mathf.Clamp(attackYawOffset, -45f, 45f);
         attackInputMinInterval = Mathf.Max(0f, attackInputMinInterval);
         attackInputBufferTime = Mathf.Max(0f, attackInputBufferTime);
+        level = Mathf.Max(1, level);
+        experience = Mathf.Max(0, experience);
+        critChance = Mathf.Clamp01(critChance);
+        lifeStealPercent = Mathf.Clamp01(lifeStealPercent);
+        critDamageMultiplier = Mathf.Max(1f, critDamageMultiplier);
+        baseXpToNextLevel = Mathf.Max(1, baseXpToNextLevel);
+        xpGrowthPerLevel = Mathf.Max(1f, xpGrowthPerLevel);
+        bonusCritChancePerLevel = Mathf.Clamp01(bonusCritChancePerLevel);
+        bonusLifeStealPerLevel = Mathf.Clamp01(bonusLifeStealPerLevel);
 
         if (Application.isPlaying)
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
+    }
+
+    public int ResolveOutgoingDamage(int baseDamage, int targetDefense, DamageType damageType, out bool isCritical)
+    {
+        int defense = damageType == DamageType.TrueDamage ? 0 : targetDefense;
+        return CombatDamageFormulas.Calculate(
+            baseDamage,
+            damageBonusPercent,
+            critChance,
+            critDamageMultiplier,
+            defense,
+            out isCritical);
+    }
+
+    public int GetDefense(DamageType damageType)
+    {
+        switch (damageType)
+        {
+            case DamageType.Physical:
+                return Mathf.Max(0, armor);
+            case DamageType.Magic:
+                return Mathf.Max(0, magicResistance);
+            default:
+                return 0;
+        }
+    }
+
+    public void TryApplyLifeStealFromAttack(int damageDealt)
+    {
+        if (damageDealt <= 0 || lifeStealPercent <= 0f)
+            return;
+
+        int healAmount = Mathf.Max(0, Mathf.RoundToInt(damageDealt * lifeStealPercent));
+        if (healAmount > 0)
+            Heal(healAmount);
+    }
+
+    public bool TryGainExperience(int amount)
+    {
+        if (amount <= 0)
+            return false;
+
+        experience += amount;
+        bool leveled = false;
+
+        while (experience >= ExperienceToNextLevel)
+        {
+            experience -= ExperienceToNextLevel;
+            level++;
+            ApplyLevelUpBonuses();
+            leveled = true;
+        }
+
+        StatsChanged?.Invoke();
+        return leveled;
+    }
+
+    private void ApplyLevelUpBonuses()
+    {
+        maxHp += bonusMaxHpPerLevel;
+        attackPower += bonusAttackPerLevel;
+        damageBonusPercent += bonusDamagePercentPerLevel;
+        critChance = Mathf.Clamp01(critChance + bonusCritChancePerLevel);
+        lifeStealPercent = Mathf.Clamp01(lifeStealPercent + bonusLifeStealPerLevel);
+        currentHp = Mathf.Min(maxHp, currentHp + bonusMaxHpPerLevel);
     }
 
     public bool EquipWeapon(ItemSO weapon)
@@ -213,6 +342,7 @@ public class Player : MonoBehaviour, IDamageable
 
     private void Awake()
     {
+        ActiveInstance = this;
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
         attackHitbox = GetComponentInChildren<AttackHitbox>(true);
@@ -220,6 +350,12 @@ public class Player : MonoBehaviour, IDamageable
         if (hitFeedback == null)
             hitFeedback = gameObject.AddComponent<HitFeedback>();
         currentHp = Mathf.Max(1, maxHp);
+    }
+
+    private void OnDestroy()
+    {
+        if (ActiveInstance == this)
+            ActiveInstance = null;
     }
 
     private void Start()
@@ -487,15 +623,15 @@ public class Player : MonoBehaviour, IDamageable
     }
 
     /// <summary>
-    /// 玩家承受一次伤害，物理伤害由护甲减免，魔法伤害由魔抗减免。
+    /// 玩家承受一次伤害。伤害应在攻击结算时已完成增伤、暴击与护甲减免。
     /// </summary>
     public bool TryTakeDamage(DamageInfo damage)
     {
         if (IsDead) return false;
         if (Time.time - lastDamagedAt < damageInvulnSeconds) return false;
 
-        int appliedDamage = CalculateDamageAfterDefense(damage);
-        if (appliedDamage <= 0) return false;
+        int appliedDamage = Mathf.Max(0, damage.amount);
+        if (appliedDamage == 0) return false;
 
         lastDamagedAt = Time.time;
         currentHp = Mathf.Max(0, currentHp - appliedDamage);
@@ -532,28 +668,6 @@ public class Player : MonoBehaviour, IDamageable
             if (animator != null)
                 animator.SetBool("IsAttacking", false);
         }
-    }
-
-    private int CalculateDamageAfterDefense(DamageInfo damage)
-    {
-        int rawDamage = Mathf.Max(0, damage.amount);
-        if (rawDamage == 0) return 0;
-
-        int defense = 0;
-        switch (damage.damageType)
-        {
-            case DamageType.Physical:
-                defense = armor;
-                break;
-            case DamageType.Magic:
-                defense = magicResistance;
-                break;
-            case DamageType.TrueDamage:
-                defense = 0;
-                break;
-        }
-
-        return Mathf.Max(1, rawDamage - Mathf.Max(0, defense));
     }
 
     private void OnDeath()

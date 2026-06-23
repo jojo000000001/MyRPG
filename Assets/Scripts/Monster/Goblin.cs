@@ -419,8 +419,11 @@ public class Goblin : Monster, IPoolable
         else
             direction = transform.forward;
 
-        DamageInfo damage = new DamageInfo(attackDamage, gameObject, target.position, direction, attackDamageType);
-        damageable.TryTakeDamage(damage);
+        int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, attackDamageType);
+        int damageAmount = ResolveOutgoingDamage(attackDamage, targetDefense, attackDamageType, out bool isCritical);
+        DamageInfo damage = new DamageInfo(damageAmount, gameObject, target.position, direction, attackDamageType, isCritical);
+        if (damageable.TryTakeDamage(damage))
+            TryApplyAttackLifeSteal(damageAmount);
     }
 
     // 水平移动到指定位置，同时应用竖直速度并同步朝向。

@@ -22,9 +22,9 @@ public sealed class DragonBoss : Monster
     [SerializeField] private float loseRadius = 32f;
 
     [Header("Movement")]
-    [SerializeField] private float walkSpeed = 2.8f;
-    [SerializeField] private float chaseSpeed = 4.2f;
-    [SerializeField] private float rotateSpeed = 240f;
+    [SerializeField] private float walkSpeed = 1.6f;
+    [SerializeField] private float chaseSpeed = 2.4f;
+    [SerializeField] private float rotateSpeed = 160f;
     [SerializeField] private float gravity = -12f;
     [SerializeField] private float arrivalThreshold = 0.45f;
     [SerializeField] private float minPlayerSeparation = 3.1f;
@@ -51,7 +51,7 @@ public sealed class DragonBoss : Monster
     [SerializeField] private float hitKnockbackDamping = 10f;
 
     [Header("Facing")]
-    [SerializeField] private float attackRotateSpeed = 720f;
+    [SerializeField] private float attackRotateSpeed = 480f;
     [SerializeField] private bool snapFaceOnAttackStart = true;
     [SerializeField] private Vector3 attackAssistFacingOffset = new Vector3(0f, 1.2f, 1.8f);
     [SerializeField] private float attackAssistRangeBonus = 5f;
@@ -301,8 +301,11 @@ public sealed class DragonBoss : Monster
         else
             direction = transform.forward;
 
-        var damage = new DamageInfo(attackDamage, gameObject, target.position, direction, attackDamageType);
-        damageable.TryTakeDamage(damage);
+        int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, attackDamageType);
+        int damageAmount = ResolveOutgoingDamage(attackDamage, targetDefense, attackDamageType, out bool isCritical);
+        var damage = new DamageInfo(damageAmount, gameObject, target.position, direction, attackDamageType, isCritical);
+        if (damageable.TryTakeDamage(damage))
+            TryApplyAttackLifeSteal(damageAmount);
     }
 
     private bool MoveToward(Vector3 destination, float speed)

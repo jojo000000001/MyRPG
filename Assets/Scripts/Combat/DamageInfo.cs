@@ -30,18 +30,27 @@ public struct DamageInfo
     // 从攻击者指向受击者的方向，可用于击退、朝向或特效旋转。
     public Vector3 direction;
 
+    // 是否暴击，用于飘字或特效区分。
+    public bool isCritical;
+
     public DamageInfo(int amount, GameObject source, Vector3 point, Vector3 direction)
-        : this(amount, source, point, direction, DamageType.Physical)
+        : this(amount, source, point, direction, DamageType.Physical, false)
     {
     }
 
     public DamageInfo(int amount, GameObject source, Vector3 point, Vector3 direction, DamageType damageType)
+        : this(amount, source, point, direction, damageType, false)
+    {
+    }
+
+    public DamageInfo(int amount, GameObject source, Vector3 point, Vector3 direction, DamageType damageType, bool isCritical)
     {
         this.amount = amount;
         this.damageType = damageType;
         this.source = source;
         this.point = point;
         this.direction = direction;
+        this.isCritical = isCritical;
     }
 }
 

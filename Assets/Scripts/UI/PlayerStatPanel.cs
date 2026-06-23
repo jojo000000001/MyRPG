@@ -18,7 +18,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
     [SerializeField] private Sprite rowSprite;
 
     [Header("Layout")]
-    [SerializeField] private Vector2 panelSize = new Vector2(320f, 340f);
+    [SerializeField] private Vector2 panelSize = new Vector2(320f, 520f);
     [SerializeField] private float gapFromInventory = 18f;
     [SerializeField] private float verticalOffset = 0f;
     [SerializeField] private float padding = 26f;
@@ -31,7 +31,13 @@ public sealed class PlayerStatPanel : MonoBehaviour
     private RectTransform rootRect;
     private GameObject inventoryPanel;
     private StatRow hpRow;
+    private StatRow levelRow;
+    private StatRow expRow;
     private StatRow attackRow;
+    private StatRow damageBonusRow;
+    private StatRow critRow;
+    private StatRow critDamageRow;
+    private StatRow lifeStealRow;
     private StatRow armorRow;
     private StatRow resistRow;
 
@@ -114,8 +120,14 @@ public sealed class PlayerStatPanel : MonoBehaviour
         ruleRect.sizeDelta = new Vector2(-padding * 2f, 2f);
 
         float y = -88f;
+        levelRow = CreateStatRow(rootObject, "LevelRow", "Level", ref y);
+        expRow = CreateStatRow(rootObject, "ExpRow", "EXP", ref y);
         hpRow = CreateStatRow(rootObject, "HealthRow", "HP", ref y);
-        attackRow = CreateStatRow(rootObject, "AttackRow", "Attack", ref y);
+        attackRow = CreateStatRow(rootObject, "AttackRow", "ATK", ref y);
+        damageBonusRow = CreateStatRow(rootObject, "DamageBonusRow", "DMG+", ref y);
+        critRow = CreateStatRow(rootObject, "CritRow", "Crit", ref y);
+        critDamageRow = CreateStatRow(rootObject, "CritDamageRow", "Crit DMG", ref y);
+        lifeStealRow = CreateStatRow(rootObject, "LifeStealRow", "Lifesteal", ref y);
         armorRow = CreateStatRow(rootObject, "ArmorRow", "Armor", ref y);
         resistRow = CreateStatRow(rootObject, "ResistRow", "Resist", ref y);
 
@@ -179,8 +191,14 @@ public sealed class PlayerStatPanel : MonoBehaviour
         if (player == null)
             return;
 
+        SetValue(levelRow, "Lv " + player.Level);
+        SetValue(expRow, player.Experience + "/" + player.ExperienceToNextLevel);
         SetValue(hpRow, player.CurrentHp + "/" + player.MaxHp);
         SetValue(attackRow, player.AttackPower.ToString());
+        SetValue(damageBonusRow, player.DamageBonusPercent.ToString("0.#") + "%");
+        SetValue(critRow, (player.CritChance * 100f).ToString("0.#") + "%");
+        SetValue(critDamageRow, (player.CritDamageMultiplier * 100f).ToString("0.#") + "%");
+        SetValue(lifeStealRow, (player.LifeStealPercent * 100f).ToString("0.#") + "%");
         SetValue(armorRow, player.Armor.ToString());
         SetValue(resistRow, player.MagicResistance.ToString());
     }

@@ -2750,7 +2750,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHp: 120
+  armor: 10
+  magicResistance: 10
   invulnSeconds: 0.15
+  level: 1
+  grantsExperienceOnDeath: 1
+  xpRewardOnDeath: 30
+  damageBonusPercent: 0
+  critChance: 0.03
+  critDamageMultiplier: 1.35
+  lifeStealPercent: 0
   hitTriggerParam: 
   hitBoolParam: HitBool
   hitFlagSeconds: 0.28

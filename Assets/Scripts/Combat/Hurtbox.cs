@@ -31,6 +31,14 @@ public class Hurtbox : MonoBehaviour
         return null;
     }
 
+    public IDamageable GetDamageable()
+    {
+        if (damageable == null)
+            damageable = damageableTarget as IDamageable ?? FindDamageableInParents();
+
+        return damageable;
+    }
+
     /// <summary>
     /// 对外入口：攻击盒把伤害交给 Hurtbox，再由 Hurtbox 转给承伤逻辑。
     /// </summary>

@@ -9,10 +9,31 @@ public abstract class Monster : MonoBehaviour, IDamageable
 {
     private static readonly List<Monster> ActiveInstances = new List<Monster>();
 
-    // 血量和受击间隔由子类共用，避免同一帧或连触发器重复扣血。
-    [Header("Health")]
+    [Header("生命值")]
+    [Tooltip("最大生命值（基础 HP）。")]
     [SerializeField] protected int maxHp = 30;
+    [Tooltip("物理护甲，减伤倍率 = 100 / (100 + 护甲)。")]
+    [SerializeField] protected int armor;
+    [Tooltip("魔法抗性，减伤倍率 = 100 / (100 + 魔抗)。")]
+    [SerializeField] protected int magicResistance;
+    [Tooltip("受击后的无敌时间（秒），期间不会再次扣血。")]
     [SerializeField] protected float invulnSeconds = 0.15f;
+
+    [Header("等级与战斗")]
+    [Tooltip("怪物等级。")]
+    [SerializeField] protected int level = 1;
+    [Tooltip("死亡时是否给玩家发放经验。")]
+    [SerializeField] protected bool grantsExperienceOnDeath;
+    [Tooltip("死亡时给予玩家的经验值。")]
+    [SerializeField] protected int xpRewardOnDeath = 20;
+    [Tooltip("额外伤害百分比，10 表示 +10%。")]
+    [SerializeField] protected float damageBonusPercent;
+    [Tooltip("暴击率（0.05 = 5%）。")]
+    [SerializeField, Range(0f, 1f)] protected float critChance;
+    [Tooltip("暴击伤害倍率（1.5 = 150% 伤害）。")]
+    [SerializeField] protected float critDamageMultiplier = 1.5f;
+    [Tooltip("攻击吸血比例（按造成伤害回血，0.05 = 5%）。")]
+    [SerializeField, Range(0f, 1f)] protected float lifeStealPercent;
 
     [Header("Animation")]
     [SerializeField] private string hitTriggerParam = "";
@@ -26,20 +47,44 @@ public abstract class Monster : MonoBehaviour, IDamageable
     protected Animator animator;
     private HitFeedback hitFeedback;
 
+    /// <summary>当前生命值。</summary>
     public int CurrentHp => hp;
+    /// <summary>最大生命值。</summary>
     public int MaxHp => maxHp;
+    /// <summary>物理护甲。</summary>
+    public int Armor => armor;
+    /// <summary>魔法抗性。</summary>
+    public int MagicResistance => magicResistance;
+    /// <summary>是否已死亡。</summary>
     public bool IsDead => hp <= 0;
+
+    public int GetDefense(DamageType damageType)
+    {
+        switch (damageType)
+        {
+            case DamageType.Physical:
+                return Mathf.Max(0, armor);
+            case DamageType.Magic:
+                return Mathf.Max(0, magicResistance);
+            default:
+                return 0;
+        }
+    }
+    /// <summary>怪物等级。</summary>
+    public int Level => Mathf.Max(1, level);
+    /// <summary>额外伤害百分比。</summary>
+    public float DamageBonusPercent => damageBonusPercent;
+    /// <summary>暴击率（0~1）。</summary>
+    public float CritChance => critChance;
+    /// <summary>暴击伤害倍率。</summary>
+    public float CritDamageMultiplier => critDamageMultiplier;
+    /// <summary>攻击吸血比例（0~1）。</summary>
+    public float LifeStealPercent => lifeStealPercent;
 
     public event Action Died;
 
-    /// <summary>
-    /// 玩家攻击辅助瞄准点。大体型 Boss 可覆写为头颈附近。
-    /// </summary>
     public virtual Vector3 GetAttackAssistFacingPoint() => transform.position;
 
-    /// <summary>
-    /// 玩家攻击辅助的额外搜索半径（米）。
-    /// </summary>
     public virtual float GetAttackAssistRangeBonus() => 0f;
 
     protected static float GetPlanarDistance(Vector3 a, Vector3 b)
@@ -85,9 +130,6 @@ public abstract class Monster : MonoBehaviour, IDamageable
         ActiveInstances.Remove(this);
     }
 
-    /// <summary>
-    /// 在半径内查找最近的存活怪物，避免每帧 FindObjectsOfType。
-    /// </summary>
     public static bool TryFindNearestLiving(Vector3 origin, float maxRadius, out Monster nearest, out float distance)
     {
         nearest = null;
@@ -131,17 +173,11 @@ public abstract class Monster : MonoBehaviour, IDamageable
         return true;
     }
 
-    /// <summary>
-    /// 兼容只传数值的旧调用，内部转换成完整的 DamageInfo。
-    /// </summary>
     public virtual bool TryTakeDamage(int damage)
     {
         return TryTakeDamage(new DamageInfo(damage, null, transform.position, Vector3.zero));
     }
 
-    /// <summary>
-    /// 尝试承受一次伤害；返回 false 表示死亡、无敌或无有效伤害。
-    /// </summary>
     public virtual bool TryTakeDamage(DamageInfo damage)
     {
         if (IsDead) return false;
@@ -175,14 +211,62 @@ public abstract class Monster : MonoBehaviour, IDamageable
     protected virtual void OnDeath()
     {
         SetLocomotionSpeed01(0f);
+        GrantExperienceToPlayer();
         ActiveInstances.Remove(this);
         Died?.Invoke();
     }
 
-    // 用短暂布尔参数驱动受击动画，随后自动复位。
-private void PlayHitFeedback(DamageInfo damage)
+    protected int ResolveOutgoingDamage(int baseDamage, int targetDefense, DamageType damageType, out bool isCritical)
+    {
+        int defense = damageType == DamageType.TrueDamage ? 0 : targetDefense;
+        return CombatDamageFormulas.Calculate(
+            baseDamage,
+            damageBonusPercent,
+            critChance,
+            critDamageMultiplier,
+            defense,
+            out isCritical);
+    }
+
+    protected void TryApplyAttackLifeSteal(int damageDealt)
+    {
+        if (damageDealt <= 0 || lifeStealPercent <= 0f)
+            return;
+
+        int healAmount = Mathf.Max(0, Mathf.RoundToInt(damageDealt * lifeStealPercent));
+        if (healAmount <= 0)
+            return;
+
+        hp = Mathf.Min(maxHp, hp + healAmount);
+    }
+
+    private void GrantExperienceToPlayer()
+    {
+        if (!grantsExperienceOnDeath || xpRewardOnDeath <= 0)
+            return;
+
+        Player player = Player.ActiveInstance;
+        if (player == null)
+            player = FindObjectOfType<Player>();
+
+        player?.TryGainExperience(xpRewardOnDeath);
+    }
+
+    private void PlayHitFeedback(DamageInfo damage)
     {
         if (hitFeedback != null)
             hitFeedback.Play(animator, hitTriggerParam, hitBoolParam, hitFlagSeconds, damage);
+    }
+
+    protected virtual void OnValidate()
+    {
+        maxHp = Mathf.Max(1, maxHp);
+        armor = Mathf.Max(0, armor);
+        magicResistance = Mathf.Max(0, magicResistance);
+        level = Mathf.Max(1, level);
+        critChance = Mathf.Clamp01(critChance);
+        lifeStealPercent = Mathf.Clamp01(lifeStealPercent);
+        critDamageMultiplier = Mathf.Max(1f, critDamageMultiplier);
+        xpRewardOnDeath = Mathf.Max(0, xpRewardOnDeath);
     }
 }

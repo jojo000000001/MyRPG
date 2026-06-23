@@ -420,7 +420,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHp: 600
+  armor: 30
+  magicResistance: 30
   invulnSeconds: 0.15
+  level: 10
+  grantsExperienceOnDeath: 1
+  xpRewardOnDeath: 250
+  damageBonusPercent: 20
+  critChance: 0.1
+  critDamageMultiplier: 1.75
+  lifeStealPercent: 0.05
   hitTriggerParam: 
   hitBoolParam: HitBool
   hitFlagSeconds: 0.35
@@ -428,9 +437,9 @@ MonoBehaviour:
   target: {fileID: 0}
   detectRadius: 22
   loseRadius: 32
-  walkSpeed: 2.8
-  chaseSpeed: 4.2
-  rotateSpeed: 240
+  walkSpeed: 1.6
+  chaseSpeed: 2.4
+  rotateSpeed: 160
   gravity: -12
   arrivalThreshold: 0.45
   minPlayerSeparation: 3.1
@@ -449,6 +458,10 @@ MonoBehaviour:
   hitStaggerSeconds: 0.35
   hitKnockbackSpeed: 1.2
   hitKnockbackDamping: 10
+  attackRotateSpeed: 480
+  snapFaceOnAttackStart: 1
+  attackAssistFacingOffset: {x: 0, y: 1.2, z: 1.8}
+  attackAssistRangeBonus: 5
   registerWithDemo: 1
   defeatEndsDemo: 1
   currentState: 0
@@ -464,7 +477,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4dc889874f8a58a48910025f644716b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  worldOffset: {x: 0, y: 2.8, z: 0}
+  worldOffset: {x: 0, y: 2.2, z: 0}
   barSize: {x: 2.8, y: 0.24}
   pixelsPerUnit: 100
   borderPixels: 4
