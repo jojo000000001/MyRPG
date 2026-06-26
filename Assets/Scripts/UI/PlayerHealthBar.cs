@@ -47,6 +47,8 @@ public sealed class PlayerHealthBar : MonoBehaviour
     {
         EnsureUi();
         UpdateImmediate();
+        PlayerExperienceBar.EnsureForHud(this);
+        LevelUpNotice.EnsureForHud(this);
     }
 
     private void OnValidate()

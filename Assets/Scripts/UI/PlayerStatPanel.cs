@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,12 +17,17 @@ public sealed class PlayerStatPanel : MonoBehaviour
     [SerializeField] private Sprite rowSprite;
 
     [Header("Layout")]
-    [SerializeField] private Vector2 panelSize = new Vector2(320f, 520f);
+    [SerializeField] private Vector2 panelSize = new Vector2(400f, 560f);
     [SerializeField] private float gapFromInventory = 18f;
     [SerializeField] private float verticalOffset = 0f;
-    [SerializeField] private float padding = 26f;
-    [SerializeField] private float rowHeight = 58f;
-    [SerializeField] private float rowSpacing = 10f;
+    [SerializeField] private float padding = 28f;
+    [SerializeField] private float rowHeight = 44f;
+    [SerializeField] private float rowSpacing = 7f;
+
+    [Header("Typography")]
+    [SerializeField] private int titleFontSize = 24;
+    [SerializeField] private int labelFontSize = 14;
+    [SerializeField] private int valueFontSize = 15;
 
     [Header("Display")]
     [SerializeField] private bool followInventoryVisibility = true;
@@ -101,35 +105,34 @@ public sealed class PlayerStatPanel : MonoBehaviour
 
         ConfigureImage(rootObject.GetComponent<Image>(), panelSprite, Image.Type.Sliced, PanelFallbackColor);
 
-        TextMeshProUGUI title = CreateText(rootObject, "Title", "Player", 30f, TextAlignmentOptions.Left);
+        Text title = CreateText(rootObject, "Title", "角色属性", titleFontSize, TextAnchor.MiddleLeft, FontStyle.Bold);
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = new Vector2(padding, -22f);
-        titleRect.sizeDelta = new Vector2(-padding * 2f, 42f);
+        titleRect.anchoredPosition = new Vector2(padding, -20f);
+        titleRect.sizeDelta = new Vector2(-padding * 2f, 36f);
         title.color = PrimaryTextColor;
-        title.fontStyle = FontStyles.Bold;
 
         Image rule = CreateImage(rootObject, "TitleRule", new Color(0.30f, 0.17f, 0.08f, 0.35f));
         RectTransform ruleRect = rule.rectTransform;
         ruleRect.anchorMin = new Vector2(0f, 1f);
         ruleRect.anchorMax = new Vector2(1f, 1f);
         ruleRect.pivot = new Vector2(0.5f, 1f);
-        ruleRect.anchoredPosition = new Vector2(0f, -72f);
+        ruleRect.anchoredPosition = new Vector2(0f, -64f);
         ruleRect.sizeDelta = new Vector2(-padding * 2f, 2f);
 
-        float y = -88f;
-        levelRow = CreateStatRow(rootObject, "LevelRow", "Level", ref y);
-        expRow = CreateStatRow(rootObject, "ExpRow", "EXP", ref y);
-        hpRow = CreateStatRow(rootObject, "HealthRow", "HP", ref y);
-        attackRow = CreateStatRow(rootObject, "AttackRow", "ATK", ref y);
-        damageBonusRow = CreateStatRow(rootObject, "DamageBonusRow", "DMG+", ref y);
-        critRow = CreateStatRow(rootObject, "CritRow", "Crit", ref y);
-        critDamageRow = CreateStatRow(rootObject, "CritDamageRow", "Crit DMG", ref y);
-        lifeStealRow = CreateStatRow(rootObject, "LifeStealRow", "Lifesteal", ref y);
-        armorRow = CreateStatRow(rootObject, "ArmorRow", "Armor", ref y);
-        resistRow = CreateStatRow(rootObject, "ResistRow", "Resist", ref y);
+        float y = -76f;
+        levelRow = CreateStatRow(rootObject, "LevelRow", "等级", ref y);
+        expRow = CreateStatRow(rootObject, "ExpRow", "经验", ref y);
+        hpRow = CreateStatRow(rootObject, "HealthRow", "生命", ref y);
+        attackRow = CreateStatRow(rootObject, "AttackRow", "攻击", ref y);
+        damageBonusRow = CreateStatRow(rootObject, "DamageBonusRow", "增伤", ref y);
+        critRow = CreateStatRow(rootObject, "CritRow", "暴击率", ref y);
+        critDamageRow = CreateStatRow(rootObject, "CritDamageRow", "暴击伤害", ref y);
+        lifeStealRow = CreateStatRow(rootObject, "LifeStealRow", "吸血", ref y);
+        armorRow = CreateStatRow(rootObject, "ArmorRow", "护甲", ref y);
+        resistRow = CreateStatRow(rootObject, "ResistRow", "魔抗", ref y);
 
         UpdateVisibility();
     }
@@ -145,23 +148,21 @@ public sealed class PlayerStatPanel : MonoBehaviour
         rowRect.sizeDelta = new Vector2(panelSize.x - padding * 2f, rowHeight);
         ConfigureImage(rowObject.GetComponent<Image>(), rowSprite, Image.Type.Sliced, RowFallbackColor);
 
-        TextMeshProUGUI labelText = CreateText(rowObject, "Label", label, 19f, TextAlignmentOptions.Left);
+        Text labelText = CreateText(rowObject, "Label", label, labelFontSize, TextAnchor.MiddleLeft, FontStyle.Bold);
         RectTransform labelRect = labelText.rectTransform;
         labelRect.anchorMin = new Vector2(0f, 0f);
-        labelRect.anchorMax = new Vector2(0.55f, 1f);
-        labelRect.offsetMin = new Vector2(22f, 0f);
+        labelRect.anchorMax = new Vector2(0.58f, 1f);
+        labelRect.offsetMin = new Vector2(18f, 0f);
         labelRect.offsetMax = Vector2.zero;
         labelText.color = MutedTextColor;
-        labelText.fontStyle = FontStyles.Bold;
 
-        TextMeshProUGUI valueText = CreateText(rowObject, "Value", "0", 24f, TextAlignmentOptions.Right);
+        Text valueText = CreateText(rowObject, "Value", "0", valueFontSize, TextAnchor.MiddleRight, FontStyle.Bold);
         RectTransform valueRect = valueText.rectTransform;
-        valueRect.anchorMin = new Vector2(0.45f, 0f);
+        valueRect.anchorMin = new Vector2(0.42f, 0f);
         valueRect.anchorMax = new Vector2(1f, 1f);
         valueRect.offsetMin = Vector2.zero;
-        valueRect.offsetMax = new Vector2(-22f, 0f);
+        valueRect.offsetMax = new Vector2(-18f, 0f);
         valueText.color = PrimaryTextColor;
-        valueText.fontStyle = FontStyles.Bold;
 
         y -= rowHeight + rowSpacing;
 
@@ -191,9 +192,9 @@ public sealed class PlayerStatPanel : MonoBehaviour
         if (player == null)
             return;
 
-        SetValue(levelRow, "Lv " + player.Level);
-        SetValue(expRow, player.Experience + "/" + player.ExperienceToNextLevel);
-        SetValue(hpRow, player.CurrentHp + "/" + player.MaxHp);
+        SetValue(levelRow, player.Level + " 级");
+        SetValue(expRow, player.Experience + " / " + player.ExperienceToNextLevel + "  还差 " + player.ExperienceRemaining);
+        SetValue(hpRow, player.CurrentHp + " / " + player.MaxHp);
         SetValue(attackRow, player.AttackPower.ToString());
         SetValue(damageBonusRow, player.DamageBonusPercent.ToString("0.#") + "%");
         SetValue(critRow, (player.CritChance * 100f).ToString("0.#") + "%");
@@ -205,7 +206,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
 
     private static void SetValue(StatRow row, string value)
     {
-        if (row != null && row.ValueText != null)
+        if (row?.ValueText != null)
             row.ValueText.text = value;
     }
 
@@ -226,14 +227,16 @@ public sealed class PlayerStatPanel : MonoBehaviour
         return image;
     }
 
-    private static TextMeshProUGUI CreateText(GameObject parent, string name, string text, float fontSize, TextAlignmentOptions alignment)
+    private static Text CreateText(GameObject parent, string name, string text, int fontSize, TextAnchor alignment, FontStyle style)
     {
-        GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(TextMeshProUGUI));
-        TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
+        GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(Text));
+        Text label = textObject.GetComponent<Text>();
         label.text = text;
-        label.fontSize = fontSize;
         label.alignment = alignment;
+        label.horizontalOverflow = HorizontalWrapMode.Overflow;
+        label.verticalOverflow = VerticalWrapMode.Overflow;
         label.raycastTarget = false;
+        ChineseUIFont.Apply(label, fontSize, style);
         return label;
     }
 
@@ -250,12 +253,15 @@ public sealed class PlayerStatPanel : MonoBehaviour
         panelSize.y = Mathf.Max(260f, panelSize.y);
         gapFromInventory = Mathf.Max(0f, gapFromInventory);
         padding = Mathf.Clamp(padding, 12f, 48f);
-        rowHeight = Mathf.Max(44f, rowHeight);
+        rowHeight = Mathf.Max(36f, rowHeight);
         rowSpacing = Mathf.Max(0f, rowSpacing);
+        titleFontSize = Mathf.Max(12, titleFontSize);
+        labelFontSize = Mathf.Max(10, labelFontSize);
+        valueFontSize = Mathf.Max(10, valueFontSize);
     }
 
     private sealed class StatRow
     {
-        public TextMeshProUGUI ValueText;
+        public Text ValueText;
     }
 }

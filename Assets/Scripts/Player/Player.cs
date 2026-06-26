@@ -97,6 +97,10 @@ public class Player : MonoBehaviour, IDamageable
     public int Experience => Mathf.Max(0, experience);
     /// <summary>升到下一级所需经验。</summary>
     public int ExperienceToNextLevel => Mathf.Max(1, Mathf.RoundToInt(baseXpToNextLevel * Mathf.Pow(xpGrowthPerLevel, Level - 1)));
+    /// <summary>当前等级经验进度（0~1）。</summary>
+    public float ExperienceProgress01 => ExperienceToNextLevel <= 0 ? 0f : Mathf.Clamp01((float)Experience / ExperienceToNextLevel);
+    /// <summary>距离升级还差多少经验。</summary>
+    public int ExperienceRemaining => Mathf.Max(0, ExperienceToNextLevel - Experience);
     /// <summary>额外伤害百分比。</summary>
     public float DamageBonusPercent => damageBonusPercent;
     /// <summary>暴击率（0~1）。</summary>
@@ -107,6 +111,27 @@ public class Player : MonoBehaviour, IDamageable
     public float LifeStealPercent => lifeStealPercent;
     public event Action EquipmentChanged;
     public event Action StatsChanged;
+    public event Action<LevelUpInfo> LeveledUp;
+
+    public readonly struct LevelUpInfo
+    {
+        public readonly int NewLevel;
+        public readonly int BonusMaxHp;
+        public readonly int BonusAttack;
+        public readonly float BonusDamagePercent;
+        public readonly float BonusCritChance;
+        public readonly float BonusLifeSteal;
+
+        public LevelUpInfo(int newLevel, int bonusMaxHp, int bonusAttack, float bonusDamagePercent, float bonusCritChance, float bonusLifeSteal)
+        {
+            NewLevel = newLevel;
+            BonusMaxHp = bonusMaxHp;
+            BonusAttack = bonusAttack;
+            BonusDamagePercent = bonusDamagePercent;
+            BonusCritChance = bonusCritChance;
+            BonusLifeSteal = bonusLifeSteal;
+        }
+    }
 
     /// <summary>基础攻击力（不含武器）。</summary>
     public int BaseAttackPower => Mathf.Max(0, attackPower);
@@ -282,7 +307,8 @@ public class Player : MonoBehaviour, IDamageable
         {
             experience -= ExperienceToNextLevel;
             level++;
-            ApplyLevelUpBonuses();
+            LevelUpInfo info = ApplyLevelUpBonuses();
+            LeveledUp?.Invoke(info);
             leveled = true;
         }
 
@@ -290,7 +316,7 @@ public class Player : MonoBehaviour, IDamageable
         return leveled;
     }
 
-    private void ApplyLevelUpBonuses()
+    private LevelUpInfo ApplyLevelUpBonuses()
     {
         maxHp += bonusMaxHpPerLevel;
         attackPower += bonusAttackPerLevel;
@@ -298,6 +324,14 @@ public class Player : MonoBehaviour, IDamageable
         critChance = Mathf.Clamp01(critChance + bonusCritChancePerLevel);
         lifeStealPercent = Mathf.Clamp01(lifeStealPercent + bonusLifeStealPerLevel);
         currentHp = Mathf.Min(maxHp, currentHp + bonusMaxHpPerLevel);
+
+        return new LevelUpInfo(
+            Level,
+            bonusMaxHpPerLevel,
+            bonusAttackPerLevel,
+            bonusDamagePercentPerLevel,
+            bonusCritChancePerLevel,
+            bonusLifeStealPerLevel);
     }
 
     public bool EquipWeapon(ItemSO weapon)
@@ -636,6 +670,7 @@ public class Player : MonoBehaviour, IDamageable
         lastDamagedAt = Time.time;
         currentHp = Mathf.Max(0, currentHp - appliedDamage);
         PlayHitFeedback(damage);
+        DamageNumberSpawner.Show(damage, transform.position);
 
         if (IsDead)
             OnDeath();

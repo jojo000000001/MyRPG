@@ -190,6 +190,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
         hp = Mathf.Max(0, hp - appliedDamage);
 
         PlayHitFeedback(damage);
+        DamageNumberSpawner.Show(damage, transform.position);
         OnDamaged(appliedDamage);
 
         if (IsDead)

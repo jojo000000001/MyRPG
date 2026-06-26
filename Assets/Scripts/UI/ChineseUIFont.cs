@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 为运行时 UI 提供可显示中文的系统字体（TMP 默认字体不含 CJK 字形）。
+/// 为运行时 UI 提供可显示中文的系统字体（Legacy Text）。
 /// </summary>
 public static class ChineseUIFont
 {
@@ -18,6 +18,9 @@ public static class ChineseUIFont
         "Arial Unicode MS",
     };
 
+    private static readonly string CommonCharacters =
+        "等级经验生命攻击增伤暴击伤害吸血护甲魔抗角色属性还差升级";
+
     public static Font Get()
     {
         if (cachedFont != null)
@@ -27,6 +30,9 @@ public static class ChineseUIFont
         if (cachedFont == null)
             cachedFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
+        cachedFont?.RequestCharactersInTexture(CommonCharacters, 32, FontStyle.Bold);
+        cachedFont?.RequestCharactersInTexture(CommonCharacters, 32, FontStyle.Normal);
+
         return cachedFont;
     }
 
@@ -35,9 +41,11 @@ public static class ChineseUIFont
         if (label == null)
             return;
 
-        label.font = Get();
+        Font font = Get();
+        label.font = font;
         label.fontSize = fontSize;
         label.fontStyle = style;
         label.supportRichText = true;
+        font?.RequestCharactersInTexture(label.text, fontSize, style);
     }
 }
