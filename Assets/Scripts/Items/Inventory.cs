@@ -153,23 +153,7 @@ private InventoryEntry FindEntry(ItemSO item)
 
     private static void ApplyItem(ItemSO item, Player player)
     {
-        if (item == null || item.propertyList == null)
-            return;
-
-        for (int i = 0; i < item.propertyList.Count; i++)
-        {
-            ItemProperty property = item.propertyList[i];
-            if (property == null)
-                continue;
-
-            switch (property.PropertyType)
-            {
-                case ItemPropertyType.HPValue:
-                    if (player != null && !player.IsDead)
-                        player.Heal(property.Value);
-                    break;
-            }
-        }
+        ConsumableEffectApplicator.Apply(item, player);
     }
 
     private static bool IsWeaponItem(ItemSO item)

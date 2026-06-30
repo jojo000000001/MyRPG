@@ -17,6 +17,10 @@ public class Player : MonoBehaviour, IDamageable
     [Header("基础属性")]
     [Tooltip("最大生命值（基础 HP）。")]
     [SerializeField] private int maxHp = 100;
+    [Tooltip("最大能量值。")]
+    [SerializeField] private int maxEnergy = 100;
+    [Tooltip("最大精神值。")]
+    [SerializeField] private int maxMental = 100;
     [Tooltip("物理护甲，减伤倍率 = 100 / (100 + 护甲)。")]
     [SerializeField] private int armor = 5;
     [Tooltip("魔法抗性，减伤倍率 = 100 / (100 + 魔抗)。")]
@@ -79,7 +83,13 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField, Range(-45f, 45f)] private float attackYawOffset = 0f;
     [SerializeField] private bool assistCameraBehindOnAttack = true;
     private int currentHp;
+    private int currentEnergy;
+    private int currentMental;
     private float lastDamagedAt = -999f;
+    private int speedBuffAmount;
+    private float speedBuffExpiresAt = -999f;
+    private int attackBuffAmount;
+    private float attackBuffExpiresAt = -999f;
 
     private Coroutine queuedHitboxRoutine;
     private bool attackHitboxEventReceived;
@@ -87,6 +97,18 @@ public class Player : MonoBehaviour, IDamageable
     public int MaxHp => maxHp;
     /// <summary>当前生命值。</summary>
     public int CurrentHp => currentHp;
+    /// <summary>最大能量值。</summary>
+    public int MaxEnergy => maxEnergy;
+    /// <summary>当前能量值。</summary>
+    public int CurrentEnergy => currentEnergy;
+    /// <summary>最大精神值。</summary>
+    public int MaxMental => maxMental;
+    /// <summary>当前精神值。</summary>
+    public int CurrentMental => currentMental;
+    /// <summary>消耗品提供的临时移速加成。</summary>
+    public int SpeedBuffAmount => GetActiveSpeedBuff();
+    /// <summary>消耗品提供的临时攻击加成。</summary>
+    public int AttackBuffAmount => GetActiveAttackBuff();
     /// <summary>物理护甲。</summary>
     public int Armor => armor;
     /// <summary>魔法抗性。</summary>
@@ -137,11 +159,13 @@ public class Player : MonoBehaviour, IDamageable
     public int BaseAttackPower => Mathf.Max(0, attackPower);
     /// <summary>武器提供的攻击力加成。</summary>
     public int WeaponAttackBonus => GetWeaponAttackBonus(equippedWeapon);
-    /// <summary>总攻击力（基础 + 武器）。</summary>
-    public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus);
+    /// <summary>总攻击力（基础 + 武器 + 消耗品临时加成）。</summary>
+    public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus + GetActiveAttackBuff());
     public ItemSO EquippedWeapon => equippedWeapon;
     public bool IsDead => currentHp <= 0;
     public float Health01 => maxHp <= 0 ? 0f : Mathf.Clamp01((float)currentHp / maxHp);
+    public float Energy01 => maxEnergy <= 0 ? 0f : Mathf.Clamp01((float)currentEnergy / maxEnergy);
+    public float Mental01 => maxMental <= 0 ? 0f : Mathf.Clamp01((float)currentMental / maxMental);
     public bool IsAttacking => animator != null && animator.GetBool("IsAttacking");
     public bool AssistCameraBehindOnAttack => assistCameraBehindOnAttack;
     public bool IsCombatCameraAssistActive => assistCameraBehindOnAttack && IsAttacking && HasEnemyInAttackAssistRange();
@@ -234,6 +258,8 @@ public class Player : MonoBehaviour, IDamageable
     private void OnValidate()
     {
         maxHp = Mathf.Max(1, maxHp);
+        maxEnergy = Mathf.Max(1, maxEnergy);
+        maxMental = Mathf.Max(1, maxMental);
         armor = Mathf.Max(0, armor);
         magicResistance = Mathf.Max(0, magicResistance);
         attackPower = Mathf.Max(0, attackPower);
@@ -257,7 +283,11 @@ public class Player : MonoBehaviour, IDamageable
         bonusLifeStealPerLevel = Mathf.Clamp01(bonusLifeStealPerLevel);
 
         if (Application.isPlaying)
+        {
             currentHp = Mathf.Clamp(currentHp, 0, maxHp);
+            currentEnergy = Mathf.Clamp(currentEnergy, 0, maxEnergy);
+            currentMental = Mathf.Clamp(currentMental, 0, maxMental);
+        }
     }
 
     public int ResolveOutgoingDamage(int baseDamage, int targetDefense, DamageType damageType, out bool isCritical)
@@ -384,6 +414,8 @@ public class Player : MonoBehaviour, IDamageable
         if (hitFeedback == null)
             hitFeedback = gameObject.AddComponent<HitFeedback>();
         currentHp = Mathf.Max(1, maxHp);
+        currentEnergy = Mathf.Max(0, maxEnergy);
+        currentMental = Mathf.Max(0, maxMental);
     }
 
     private void OnDestroy()
@@ -485,7 +517,7 @@ public class Player : MonoBehaviour, IDamageable
                 wsFaceTurnSpeed * Time.deltaTime);
 
             Vector3 moveDir = targetRot * Vector3.forward;
-            desiredMove = moveDir * vertical * moveSpeed;
+            desiredMove = moveDir * vertical * GetEffectiveMoveSpeed();
 
             animator.SetFloat("y", vertical * runValue);
             animator.SetFloat("x", 0f);
@@ -509,7 +541,7 @@ public class Player : MonoBehaviour, IDamageable
 
             float yawError = Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, yawTarget));
             desiredMove = yawError <= Mathf.Max(0f, adMoveStartAngle)
-                ? targetRot * Vector3.forward * moveSpeed
+                ? targetRot * Vector3.forward * GetEffectiveMoveSpeed()
                 : Vector3.zero;
 
             animator.SetFloat("y", desiredMove.sqrMagnitude > 0.0001f ? runValue : 0f);
@@ -523,7 +555,7 @@ public class Player : MonoBehaviour, IDamageable
         }
         else
         {
-            desiredMove = transform.forward * vertical * moveSpeed + transform.right * horizontal * moveSpeed;
+            desiredMove = transform.forward * vertical * GetEffectiveMoveSpeed() + transform.right * horizontal * GetEffectiveMoveSpeed();
 
             Vector3 moveDir = (transform.forward * vertical + transform.right * horizontal).normalized;
             if (moveDir.sqrMagnitude > 0.0001f)
@@ -586,6 +618,44 @@ public class Player : MonoBehaviour, IDamageable
             RegisterComboAttackInput();
 
         TryConsumePendingComboInput();
+        UpdateConsumableBuffs();
+    }
+
+    private void UpdateConsumableBuffs()
+    {
+        bool buffChanged = false;
+
+        if (attackBuffAmount != 0 && Time.time >= attackBuffExpiresAt)
+        {
+            attackBuffAmount = 0;
+            attackBuffExpiresAt = -999f;
+            buffChanged = true;
+        }
+
+        if (speedBuffAmount != 0 && Time.time >= speedBuffExpiresAt)
+        {
+            speedBuffAmount = 0;
+            speedBuffExpiresAt = -999f;
+            buffChanged = true;
+        }
+
+        if (buffChanged)
+            StatsChanged?.Invoke();
+    }
+
+    private float GetEffectiveMoveSpeed()
+    {
+        return moveSpeed + GetActiveSpeedBuff();
+    }
+
+    private int GetActiveSpeedBuff()
+    {
+        return Time.time < speedBuffExpiresAt ? speedBuffAmount : 0;
+    }
+
+    private int GetActiveAttackBuff()
+    {
+        return Time.time < attackBuffExpiresAt ? attackBuffAmount : 0;
     }
 
     private void RegisterComboAttackInput()
@@ -680,8 +750,60 @@ public class Player : MonoBehaviour, IDamageable
 
     public void Heal(int amount)
     {
-        if (amount <= 0 || IsDead) return;
+        RestoreHp(amount);
+    }
+
+    public void RestoreHp(int amount)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        int previousHp = currentHp;
         currentHp = Mathf.Min(maxHp, currentHp + amount);
+        if (currentHp != previousHp)
+            StatsChanged?.Invoke();
+    }
+
+    public void RestoreEnergy(int amount)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        int previousEnergy = currentEnergy;
+        currentEnergy = Mathf.Min(maxEnergy, currentEnergy + amount);
+        if (currentEnergy != previousEnergy)
+            StatsChanged?.Invoke();
+    }
+
+    public void RestoreMental(int amount)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        int previousMental = currentMental;
+        currentMental = Mathf.Min(maxMental, currentMental + amount);
+        if (currentMental != previousMental)
+            StatsChanged?.Invoke();
+    }
+
+    public void ApplySpeedBuff(int amount, float durationSeconds)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        speedBuffAmount = Mathf.Max(speedBuffAmount, amount);
+        speedBuffExpiresAt = Time.time + Mathf.Max(0.1f, durationSeconds);
+        StatsChanged?.Invoke();
+    }
+
+    public void ApplyAttackBuff(int amount, float durationSeconds)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        attackBuffAmount = Mathf.Max(attackBuffAmount, amount);
+        attackBuffExpiresAt = Time.time + Mathf.Max(0.1f, durationSeconds);
+        StatsChanged?.Invoke();
     }
 
     public void RestoreFullHealth()
@@ -709,6 +831,10 @@ public class Player : MonoBehaviour, IDamageable
     {
         comboCount = 0;
         CancelQueuedAttackHitbox();
+        attackBuffAmount = 0;
+        attackBuffExpiresAt = -999f;
+        speedBuffAmount = 0;
+        speedBuffExpiresAt = -999f;
         velocity = Vector3.zero;
         smoothedMove = Vector3.zero;
         StopMovementAnimation();

@@ -101,21 +101,7 @@ private void OnTriggerEnter(Collider other)
 
     private void ApplyTo(Player player)
     {
-        if (item == null || item.propertyList == null)
-            return;
-
-        foreach (ItemProperty property in item.propertyList)
-        {
-            if (property == null)
-                continue;
-
-            switch (property.PropertyType)
-            {
-                case ItemPropertyType.HPValue:
-                    player.Heal(property.Value);
-                    break;
-            }
-        }
+        ConsumableEffectApplicator.Apply(item, player);
     }
 
     private void CacheVisualBase()
