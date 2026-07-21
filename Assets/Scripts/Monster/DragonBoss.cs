@@ -60,9 +60,16 @@ public sealed class DragonBoss : Monster
     [SerializeField] private bool registerWithDemo = true;
     [SerializeField] private bool defeatEndsDemo = true;
 
+    [Header("Spawn")]
+    [SerializeField] private DragonStumpSpawnPlatform spawnPlatform;
+    [SerializeField] private string spawnPlatformName = "DragonStumpPlatform";
+    [SerializeField] private float spawnGroundClearance = 0.05f;
+    [SerializeField] private float visualStandLower = 0f;
+
     [SerializeField] private State currentState = State.Idle;
 
     private CharacterController characterController;
+    private Collider spawnPlatformCollider;
     private Vector3 verticalVelocity;
     private Vector3 hitKnockbackVelocity;
     private float hitStaggerUntil = -999f;
@@ -80,15 +87,112 @@ public sealed class DragonBoss : Monster
 
         base.Awake();
         characterController = GetComponent<CharacterController>();
+        CacheSpawnPlatform();
     }
 
     private void Start()
     {
+        PrepareVisualBounds();
+        SnapToSpawnPlatform();
         AcquireTarget();
         EnterState(State.Idle);
 
         if (registerWithDemo)
             TryRegisterWithDemo();
+    }
+
+    private void CacheSpawnPlatform()
+    {
+        if (spawnPlatform == null && !string.IsNullOrEmpty(spawnPlatformName))
+        {
+            GameObject platformObject = GameObject.Find(spawnPlatformName);
+            if (platformObject != null)
+                spawnPlatform = platformObject.GetComponent<DragonStumpSpawnPlatform>();
+        }
+
+        spawnPlatformCollider = spawnPlatform != null
+            ? spawnPlatform.GetComponent<Collider>()
+            : null;
+
+        if (spawnPlatformCollider == null && !string.IsNullOrEmpty(spawnPlatformName))
+        {
+            GameObject platformObject = GameObject.Find(spawnPlatformName);
+            if (platformObject != null)
+                spawnPlatformCollider = platformObject.GetComponent<Collider>();
+        }
+    }
+
+    private void PrepareVisualBounds()
+    {
+        Animator animator = GetComponent<Animator>();
+        if (animator != null)
+            animator.Update(0f);
+
+        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].updateWhenOffscreen = true;
+    }
+
+    private void SnapToSpawnPlatform()
+    {
+        if (characterController == null || spawnPlatformCollider == null)
+            return;
+
+        float standY = spawnPlatform != null
+            ? spawnPlatform.GetStandSurfaceY()
+            : spawnPlatformCollider.bounds.max.y + spawnGroundClearance;
+
+        float visualFeetOffset = GetVisualFeetOffsetFromTransform();
+        Vector3 position = transform.position;
+        position.y = standY - visualFeetOffset - visualStandLower;
+
+        characterController.enabled = false;
+        transform.position = position;
+        verticalVelocity.y = -1f;
+        characterController.enabled = true;
+    }
+
+    private void PreventPlatformSink()
+    {
+        if (characterController == null || spawnPlatformCollider == null || IsDead)
+            return;
+
+        if (spawnPlatform != null && !spawnPlatform.ContainsPlanar(transform.position))
+            return;
+
+        float standY = spawnPlatform != null
+            ? spawnPlatform.GetStandSurfaceY()
+            : spawnPlatformCollider.bounds.max.y + spawnGroundClearance;
+
+        float visualFeetY = transform.position.y + GetVisualFeetOffsetFromTransform();
+        float targetFeetY = standY - visualStandLower;
+        if (visualFeetY >= targetFeetY - 0.02f)
+            return;
+
+        characterController.enabled = false;
+        transform.position += Vector3.up * (targetFeetY - visualFeetY);
+        verticalVelocity.y = -1f;
+        characterController.enabled = true;
+    }
+
+    private float GetVisualFeetOffsetFromTransform()
+    {
+        float lowestY = float.PositiveInfinity;
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null || !renderer.enabled)
+                continue;
+
+            if (renderer.bounds.min.y < lowestY)
+                lowestY = renderer.bounds.min.y;
+        }
+
+        if (float.IsPositiveInfinity(lowestY))
+            return characterController.center.y - characterController.height * 0.5f;
+
+        return lowestY - transform.position.y;
     }
 
     private void Update()
@@ -506,6 +610,8 @@ public sealed class DragonBoss : Monster
 
     private void LateUpdate()
     {
+        PreventPlatformSink();
+
         Vector3 euler = transform.eulerAngles;
         transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
     }

@@ -13,6 +13,7 @@ public sealed class InventoryUI : MonoBehaviour
     private const string GridName = "SlotGrid";
     private const string DetailName = "DetailText";
     private const string DragIconName = "DragIcon";
+    private const string ScrollBarName = "ScrollBar";
 
     [Header("Target")]
     [SerializeField] private Inventory inventory;
@@ -36,8 +37,10 @@ public sealed class InventoryUI : MonoBehaviour
     [SerializeField] private Vector2 slotSize = new Vector2(76f, 76f);
     [SerializeField] private Vector2 slotSpacing = new Vector2(10f, 10f);
     [SerializeField] private float longPressSeconds = 0.35f;
+    [SerializeField] private int scrollRowsPerWheelStep = 1;
 
     private readonly List<SlotView> slots = new List<SlotView>();
+    private readonly CircularQueue<int> visibleSlotIndices = new CircularQueue<int>(20);
     private RectTransform rootRect;
     private GameObject panelObject;
     private RectTransform panelRect;
@@ -45,7 +48,9 @@ public sealed class InventoryUI : MonoBehaviour
     private RectTransform dragIconRect;
     private Image dragIcon;
     private TextMeshProUGUI detailText;
+    private Scrollbar scrollBar;
     private bool isOpen;
+    private bool isSyncingScrollBar;
     private bool leftPressActive;
     private bool isDragging;
     private float leftPressStartedAt;
@@ -53,6 +58,12 @@ public sealed class InventoryUI : MonoBehaviour
     private int pressedSlotIndex = -1;
     private int hoveredSlotIndex = -1;
     private int dragSourceIndex = -1;
+    private int dragPhysicalSourceIndex = -1;
+    private int viewOffset;
+    private int selectedPhysicalIndex = -1;
+    private int lastOccupiedSlotCount = -1;
+
+    public int VisibleSlotCount => Mathf.Max(1, columns * rows);
 
     private sealed class SlotView
     {
@@ -107,6 +118,8 @@ public sealed class InventoryUI : MonoBehaviour
 
         if (leftPressActive && !Input.GetMouseButton(0))
             EndLeftPress(hoveredSlotIndex);
+
+        HandleScrollWheel();
     }
 
     public void Toggle()
@@ -179,10 +192,25 @@ public sealed class InventoryUI : MonoBehaviour
         if (slots.Count == 0)
             BindSlots();
 
+        if (inventory != null)
+        {
+            int occupiedCount = inventory.OccupiedSlotCount;
+            if (lastOccupiedSlotCount >= 0 && occupiedCount > lastOccupiedSlotCount)
+                viewOffset = 0;
+
+            lastOccupiedSlotCount = occupiedCount;
+        }
+
+        RebuildVisibleQueue();
+        selectedSlotIndex = FindUiIndexForPhysical(selectedPhysicalIndex);
+
         for (int i = 0; i < slots.Count; i++)
         {
             SlotView slot = slots[i];
-            InventoryEntry entry = inventory != null ? inventory.GetEntryAt(i) : null;
+            int physicalIndex = GetPhysicalIndex(i);
+            InventoryEntry entry = inventory != null && physicalIndex >= 0
+                ? inventory.GetEntryAt(physicalIndex)
+                : null;
             ItemSO item = entry != null ? entry.Item : null;
 
             bool hasItem = item != null && entry.Amount > 0;
@@ -194,7 +222,7 @@ public sealed class InventoryUI : MonoBehaviour
 
             if (slot.Background != null)
             {
-                if (i == selectedSlotIndex)
+                if (physicalIndex >= 0 && physicalIndex == selectedPhysicalIndex)
                     slot.Background.color = new Color(1f, 0.92f, 0.68f, 1f);
                 else if (equipped)
                     slot.Background.color = new Color(0.76f, 1f, 0.72f, 1f);
@@ -205,7 +233,8 @@ public sealed class InventoryUI : MonoBehaviour
             }
         }
 
-        UpdateDetail(selectedSlotIndex);
+        UpdateDetail(selectedPhysicalIndex);
+        UpdateScrollBar();
     }
 
     public void HandleSlotPointerDown(int index, PointerEventData eventData)
@@ -215,11 +244,12 @@ public sealed class InventoryUI : MonoBehaviour
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
+            selectedPhysicalIndex = GetPhysicalIndex(index);
             selectedSlotIndex = index;
             pressedSlotIndex = index;
             leftPressStartedAt = Time.unscaledTime;
             leftPressActive = true;
-            UpdateDetail(index);
+            UpdateDetail(selectedPhysicalIndex);
             Refresh();
         }
     }
@@ -271,6 +301,8 @@ public sealed class InventoryUI : MonoBehaviour
 
         ResolveCanonicalPanel(removeDuplicates: true);
         ConfigureCloseButton();
+        EnsureScrollBar();
+        ConfigureScrollBar();
         BindSlots();
     }
 
@@ -321,6 +353,9 @@ public sealed class InventoryUI : MonoBehaviour
         dragIconRect = drag as RectTransform;
         dragIcon = drag != null ? drag.GetComponent<Image>() : null;
 
+        Transform scroll = panel.Find(ScrollBarName);
+        scrollBar = scroll != null ? scroll.GetComponent<Scrollbar>() : null;
+
         return panelRect != null && gridRect != null && detailText != null && dragIconRect != null && dragIcon != null;
     }
 
@@ -350,6 +385,7 @@ public sealed class InventoryUI : MonoBehaviour
 
         CreateCloseButton(panelObject);
         CreateGrid(panelObject);
+        CreateScrollBar(panelObject);
 
         detailText = CreateText(panelObject, DetailName, string.Empty, 19f, TextAlignmentOptions.Left);
         RectTransform detailRect = detailText.rectTransform;
@@ -505,14 +541,19 @@ public sealed class InventoryUI : MonoBehaviour
         }
     }
 
-    private void UseSlot(int index)
+    private void UseSlot(int uiIndex)
     {
         if (inventory == null)
             return;
 
+        int physicalIndex = GetPhysicalIndex(uiIndex);
+        if (physicalIndex < 0)
+            return;
+
         ResolveTargets();
-        inventory.UseItemAt(index, player);
-        selectedSlotIndex = index;
+        inventory.UseItemAt(physicalIndex, player);
+        selectedPhysicalIndex = physicalIndex;
+        selectedSlotIndex = uiIndex;
         Refresh();
     }
 
@@ -530,10 +571,11 @@ public sealed class InventoryUI : MonoBehaviour
         pressedSlotIndex = -1;
     }
 
-    private void SelectSlot(int index)
+    private void SelectSlot(int uiIndex)
     {
-        selectedSlotIndex = index;
-        UpdateDetail(index);
+        selectedPhysicalIndex = GetPhysicalIndex(uiIndex);
+        selectedSlotIndex = uiIndex;
+        UpdateDetail(selectedPhysicalIndex);
         Refresh();
     }
 
@@ -542,14 +584,17 @@ public sealed class InventoryUI : MonoBehaviour
         if (inventory == null || pressedSlotIndex < 0)
             return;
 
-        InventoryEntry entry = inventory.GetEntryAt(pressedSlotIndex);
+        int physicalIndex = GetPhysicalIndex(pressedSlotIndex);
+        InventoryEntry entry = physicalIndex >= 0 ? inventory.GetEntryAt(physicalIndex) : null;
         ItemSO item = entry != null ? entry.Item : null;
         if (item == null || entry.Amount <= 0 || item.icon == null)
             return;
 
         isDragging = true;
         dragSourceIndex = pressedSlotIndex;
+        dragPhysicalSourceIndex = physicalIndex;
         selectedSlotIndex = pressedSlotIndex;
+        selectedPhysicalIndex = physicalIndex;
 
         if (dragIcon != null)
         {
@@ -562,12 +607,14 @@ public sealed class InventoryUI : MonoBehaviour
         Refresh();
     }
 
-    private void DropDraggedItem(int targetSlotIndex)
+    private void DropDraggedItem(int targetUiIndex)
     {
-        if (inventory != null && dragSourceIndex >= 0 && targetSlotIndex >= 0)
+        int physicalTarget = GetPhysicalIndex(targetUiIndex);
+        if (inventory != null && dragPhysicalSourceIndex >= 0 && physicalTarget >= 0)
         {
-            inventory.MoveItem(dragSourceIndex, targetSlotIndex);
-            selectedSlotIndex = targetSlotIndex;
+            inventory.MoveItem(dragPhysicalSourceIndex, physicalTarget);
+            selectedPhysicalIndex = physicalTarget;
+            selectedSlotIndex = targetUiIndex;
         }
 
         ClearDrag();
@@ -579,6 +626,7 @@ public sealed class InventoryUI : MonoBehaviour
         isDragging = false;
         leftPressActive = false;
         dragSourceIndex = -1;
+        dragPhysicalSourceIndex = -1;
         pressedSlotIndex = -1;
 
         if (dragIcon != null)
@@ -599,13 +647,199 @@ public sealed class InventoryUI : MonoBehaviour
         dragIconRect.anchoredPosition = localPoint;
     }
 
-    private void UpdateDetail(int index)
+    private void UpdateDetail(int physicalIndex)
     {
         if (detailText == null)
             return;
 
-        InventoryEntry entry = inventory != null && index >= 0 ? inventory.GetEntryAt(index) : null;
+        InventoryEntry entry = inventory != null && physicalIndex >= 0
+            ? inventory.GetEntryAt(physicalIndex)
+            : null;
         detailText.text = BuildDetailText(entry);
+    }
+
+    private void HandleScrollWheel()
+    {
+        if (inventory == null || !IsPointerOverPanel())
+            return;
+
+        float scroll = Input.mouseScrollDelta.y;
+        if (Mathf.Approximately(scroll, 0f))
+            return;
+
+        int step = columns * Mathf.Max(1, scrollRowsPerWheelStep);
+        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+
+        if (scroll > 0f)
+            viewOffset = Mathf.Max(0, viewOffset - step);
+        else
+            viewOffset = Mathf.Min(maxOffset, viewOffset + step);
+
+        Refresh();
+    }
+
+    private void CreateScrollBar(GameObject parent)
+    {
+        GameObject scrollObject = CreateChild(parent, ScrollBarName, typeof(RectTransform), typeof(Scrollbar));
+        RectTransform scrollRect = scrollObject.GetComponent<RectTransform>();
+        scrollRect.anchorMin = new Vector2(1f, 1f);
+        scrollRect.anchorMax = new Vector2(1f, 1f);
+        scrollRect.pivot = new Vector2(1f, 1f);
+        scrollRect.anchoredPosition = new Vector2(-18f, -92f);
+        scrollRect.sizeDelta = new Vector2(14f, rows * slotSize.y + (rows - 1) * slotSpacing.y);
+
+        Scrollbar scrollbar = scrollObject.GetComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        GameObject trackObject = CreateChild(scrollObject, "Track", typeof(RectTransform), typeof(Image));
+        RectTransform trackRect = trackObject.GetComponent<RectTransform>();
+        trackRect.anchorMin = Vector2.zero;
+        trackRect.anchorMax = Vector2.one;
+        trackRect.offsetMin = Vector2.zero;
+        trackRect.offsetMax = Vector2.zero;
+
+        Image trackImage = trackObject.GetComponent<Image>();
+        trackImage.color = new Color(0.18f, 0.1f, 0.05f, 0.35f);
+        trackImage.raycastTarget = true;
+
+        GameObject handleSlideArea = CreateChild(scrollObject, "Sliding Area", typeof(RectTransform));
+        RectTransform slideRect = handleSlideArea.GetComponent<RectTransform>();
+        slideRect.anchorMin = Vector2.zero;
+        slideRect.anchorMax = Vector2.one;
+        slideRect.offsetMin = new Vector2(2f, 6f);
+        slideRect.offsetMax = new Vector2(-2f, -6f);
+
+        GameObject handleObject = CreateChild(handleSlideArea, "Handle", typeof(RectTransform), typeof(Image));
+        RectTransform handleRect = handleObject.GetComponent<RectTransform>();
+        handleRect.anchorMin = Vector2.zero;
+        handleRect.anchorMax = Vector2.one;
+        handleRect.offsetMin = Vector2.zero;
+        handleRect.offsetMax = Vector2.zero;
+
+        Image handleImage = handleObject.GetComponent<Image>();
+        handleImage.color = new Color(0.72f, 0.48f, 0.24f, 0.95f);
+
+        scrollbar.handleRect = handleRect;
+        scrollbar.targetGraphic = handleImage;
+        scrollBar = scrollbar;
+    }
+
+    private void EnsureScrollBar()
+    {
+        if (panelObject == null || scrollBar != null)
+            return;
+
+        Transform existing = panelObject.transform.Find(ScrollBarName);
+        if (existing != null)
+        {
+            scrollBar = existing.GetComponent<Scrollbar>();
+            return;
+        }
+
+        CreateScrollBar(panelObject);
+    }
+
+    private void ConfigureScrollBar()
+    {
+        if (scrollBar == null)
+            return;
+
+        scrollBar.onValueChanged.RemoveListener(HandleScrollBarValueChanged);
+        scrollBar.onValueChanged.AddListener(HandleScrollBarValueChanged);
+    }
+
+    private void UpdateScrollBar()
+    {
+        if (scrollBar == null)
+            return;
+
+        bool canScroll = inventory != null && inventory.Capacity > VisibleSlotCount;
+        scrollBar.gameObject.SetActive(canScroll);
+        if (!canScroll)
+            return;
+
+        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        float normalized = maxOffset > 0 ? 1f - (float)viewOffset / maxOffset : 1f;
+        float handleSize = Mathf.Clamp01((float)VisibleSlotCount / inventory.Capacity);
+
+        isSyncingScrollBar = true;
+        scrollBar.size = handleSize;
+        scrollBar.SetValueWithoutNotify(normalized);
+        isSyncingScrollBar = false;
+    }
+
+    private void HandleScrollBarValueChanged(float value)
+    {
+        if (isSyncingScrollBar || inventory == null)
+            return;
+
+        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        viewOffset = maxOffset - Mathf.RoundToInt(value * maxOffset);
+        viewOffset = Mathf.Clamp(viewOffset, 0, maxOffset);
+        Refresh();
+    }
+
+    private void RebuildVisibleQueue()
+    {
+        if (visibleSlotIndices.Capacity != VisibleSlotCount)
+            visibleSlotIndices.Reset(VisibleSlotCount);
+
+        visibleSlotIndices.Clear();
+        ClampViewOffset();
+
+        if (inventory == null)
+            return;
+
+        for (int i = 0; i < VisibleSlotCount; i++)
+        {
+            int physicalIndex = viewOffset + i;
+            if (physicalIndex < inventory.Capacity)
+                visibleSlotIndices.TryEnqueue(physicalIndex);
+        }
+    }
+
+    private void ClampViewOffset()
+    {
+        if (inventory == null)
+        {
+            viewOffset = 0;
+            return;
+        }
+
+        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        viewOffset = Mathf.Clamp(viewOffset, 0, maxOffset);
+    }
+
+    private int GetPhysicalIndex(int uiIndex)
+    {
+        if (uiIndex < 0 || uiIndex >= VisibleSlotCount)
+            return -1;
+
+        return visibleSlotIndices.TryGetAt(uiIndex, out int physicalIndex)
+            ? physicalIndex
+            : -1;
+    }
+
+    private int FindUiIndexForPhysical(int physicalIndex)
+    {
+        if (physicalIndex < 0)
+            return -1;
+
+        for (int i = 0; i < VisibleSlotCount; i++)
+        {
+            if (GetPhysicalIndex(i) == physicalIndex)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private bool IsPointerOverPanel()
+    {
+        if (panelRect == null)
+            return false;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(panelRect, Input.mousePosition, null);
     }
 
     private void ResolveTargets()
@@ -619,34 +853,57 @@ public sealed class InventoryUI : MonoBehaviour
 
     private string BuildDetailText(InventoryEntry entry)
     {
+        StringBuilder builder = new StringBuilder();
+
         ItemSO item = entry != null ? entry.Item : null;
         if (item == null || entry.Amount <= 0)
-            return "Empty";
-
-        StringBuilder builder = new StringBuilder();
-        builder.Append(item.name);
-        builder.Append("  x");
-        builder.Append(entry.Amount);
-
-        if (IsEquipped(item))
-            builder.Append("  Equipped");
-
-        builder.AppendLine();
-        builder.Append(item.itemType == ItemType.Weapon ? "Weapon" : "Consumable");
-
-        AppendPropertyLine(builder, item, ItemPropertyType.AttackValue, "Attack");
-        AppendPropertyLine(builder, item, ItemPropertyType.HPValue, "HP");
-        AppendPropertyLine(builder, item, ItemPropertyType.EnergyValue, "Energy");
-        AppendPropertyLine(builder, item, ItemPropertyType.MentalValue, "Mental");
-        AppendPropertyLine(builder, item, ItemPropertyType.SpeedValue, "Speed");
-
-        if (!string.IsNullOrEmpty(item.description))
         {
+            builder.Append("Empty");
+        }
+        else
+        {
+            builder.Append(item.name);
+            builder.Append("  x");
+            builder.Append(entry.Amount);
+
+            if (IsEquipped(item))
+                builder.Append("  Equipped");
+
             builder.AppendLine();
-            builder.Append(item.description);
+            builder.Append(item.itemType == ItemType.Weapon ? "Weapon" : "Consumable");
+
+            AppendPropertyLine(builder, item, ItemPropertyType.AttackValue, "Attack");
+            AppendPropertyLine(builder, item, ItemPropertyType.HPValue, "HP");
+            AppendPropertyLine(builder, item, ItemPropertyType.EnergyValue, "Energy");
+            AppendPropertyLine(builder, item, ItemPropertyType.MentalValue, "Mental");
+            AppendPropertyLine(builder, item, ItemPropertyType.SpeedValue, "Speed");
+
+            if (!string.IsNullOrEmpty(item.description))
+            {
+                builder.AppendLine();
+                builder.Append(item.description);
+            }
         }
 
+        AppendScrollHint(builder);
         return builder.ToString();
+    }
+
+    private void AppendScrollHint(StringBuilder builder)
+    {
+        if (inventory == null || inventory.Capacity <= VisibleSlotCount)
+            return;
+
+        int visibleStart = viewOffset + 1;
+        int visibleEnd = Mathf.Min(viewOffset + VisibleSlotCount, inventory.Capacity);
+
+        builder.AppendLine();
+        builder.Append(visibleStart);
+        builder.Append("-");
+        builder.Append(visibleEnd);
+        builder.Append(" / ");
+        builder.Append(inventory.Capacity);
+        builder.Append("  (scroll wheel)");
     }
 
     private bool IsEquipped(ItemSO item)
@@ -710,5 +967,6 @@ public sealed class InventoryUI : MonoBehaviour
         slotSize.x = Mathf.Max(48f, slotSize.x);
         slotSize.y = Mathf.Max(48f, slotSize.y);
         longPressSeconds = Mathf.Max(0.05f, longPressSeconds);
+        scrollRowsPerWheelStep = Mathf.Max(1, scrollRowsPerWheelStep);
     }
 }

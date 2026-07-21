@@ -18,6 +18,7 @@ public sealed class ConsumablePickup : MonoBehaviour, IPoolable
 
     private Vector3 visualBaseLocalPosition;
     private bool hasVisualBase;
+    private bool consumed;
 
     public ItemSO Item => item;
 
@@ -25,6 +26,7 @@ public sealed class ConsumablePickup : MonoBehaviour, IPoolable
     {
         transform.localRotation = Quaternion.identity;
         hasVisualBase = false;
+        consumed = false;
         CacheVisualBase();
     }
 
@@ -70,33 +72,54 @@ public sealed class ConsumablePickup : MonoBehaviour, IPoolable
 
 private void OnTriggerEnter(Collider other)
     {
-        if (!consumeOnPickup)
+        TryPickup(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        TryPickup(other);
+    }
+
+    private void TryPickup(Collider other)
+    {
+        if (!consumeOnPickup || item == null || consumed)
             return;
 
         Player player = other.GetComponentInParent<Player>();
         if (player == null || player.IsDead)
             return;
 
-        bool pickedUp = false;
         Inventory inventory = player.GetComponent<Inventory>();
-        if (addToInventory && inventory != null)
-        {
-            pickedUp = inventory.AddItem(item, 1);
-            if (pickedUp && ShouldAutoEquipWeapon(player))
-                player.EquipWeapon(item);
-        }
+        if (!TryHandlePickup(player, inventory))
+            return;
 
-        if (!pickedUp)
-        {
-            ApplyTo(player);
-            pickedUp = true;
-        }
+        consumed = true;
 
-        if (pickedUp && destroyOnPickup)
+        if (destroyOnPickup)
         {
             if (!PooledObject.TryRelease(gameObject))
                 Destroy(gameObject);
         }
+    }
+
+    private bool TryHandlePickup(Player player, Inventory inventory)
+    {
+        if (addToInventory && inventory != null && inventory.AddItem(item, 1, insertAtFront: true))
+        {
+            if (ShouldAutoEquipWeapon(player))
+                player.EquipWeapon(item);
+
+            return true;
+        }
+
+        if (IsWeaponItem(item) && ShouldAutoEquipWeapon(player))
+            return player.EquipWeapon(item);
+
+        if (IsWeaponItem(item))
+            return false;
+
+        ApplyTo(player);
+        return true;
     }
 
     private void ApplyTo(Player player)

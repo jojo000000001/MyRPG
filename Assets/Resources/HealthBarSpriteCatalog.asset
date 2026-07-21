@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecffcfce92e65ef44ab8ed3f0660e3e0, type: 3}
+  m_Name: HealthBarSpriteCatalog
+  m_EditorClassIdentifier: 
+  backLeft: {fileID: 21300000, guid: 94c657774b543414d96f225a84359d62, type: 3}
+  backMid: {fileID: 21300000, guid: ce5b52c944f326c4fbfa0fab7d9a7247, type: 3}
+  backRight: {fileID: 21300000, guid: ebae5a6ac40627f43a1f7c581d52fc3c, type: 3}
+  greenLeft: {fileID: 21300000, guid: 1bbbccb8a76e5034f82e8b8b7aca0f22, type: 3}
+  greenMid: {fileID: 21300000, guid: f9d32e66c682cfb408bf109687d26407, type: 3}
+  greenRight: {fileID: 21300000, guid: 16fff845b4583c04a8f625106cd95ec7, type: 3}
+  redLeft: {fileID: 21300000, guid: 00187ecd0636ef14fbcaa00792108ec7, type: 3}
+  redMid: {fileID: 21300000, guid: a6cfe4ef007d5ef45adda44843ff9b80, type: 3}
+  redRight: {fileID: 21300000, guid: 3dd212ee758f3344bb58bfa3779dffba, type: 3}
+  blueLeft: {fileID: 21300000, guid: 10b526c455082e44ba26e5bf2cc2782e, type: 3}
+  blueMid: {fileID: 21300000, guid: 40ddb587a60850c4f8ddaed1d00c80b3, type: 3}
+  blueRight: {fileID: 21300000, guid: 500a716b14367af47b4ccd4753a98390, type: 3}

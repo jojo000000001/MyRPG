@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d4b6a78efc49f42a0e783027633d3a, type: 3}
+  m_Name: Consumer_IronRoot
+  m_EditorClassIdentifier: 
+  id: 131
+  name: Iron Root
+  itemType: 1
+  description: A tough root that restores HP and strength.
+  propertyList:
+  - PropertyType: 0
+    Value: 40
+  - PropertyType: 4
+    Value: 10
+  icon: {fileID: 21300000, guid: a0fb952066f042a486b2df38509727c1, type: 3}
+  prefab: {fileID: 0}

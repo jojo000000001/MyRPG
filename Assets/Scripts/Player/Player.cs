@@ -1011,4 +1011,50 @@ public class Player : MonoBehaviour, IDamageable
         if (attackHitbox != null)
             attackHitbox.ActivateOnce();
     }
+
+    public PlayerSaveData CaptureSaveData()
+    {
+        return new PlayerSaveData
+        {
+            level = Level,
+            experience = Experience,
+            maxHp = maxHp,
+            currentHp = currentHp,
+            maxEnergy = maxEnergy,
+            currentEnergy = currentEnergy,
+            maxMental = maxMental,
+            currentMental = currentMental,
+            attackPower = attackPower,
+            equippedWeaponId = equippedWeapon != null ? equippedWeapon.id : 0,
+        };
+    }
+
+    public void ApplySaveData(PlayerSaveData data, ItemCatalog itemCatalog)
+    {
+        if (data == null)
+            return;
+
+        level = Mathf.Max(1, data.level);
+        experience = Mathf.Max(0, data.experience);
+        maxHp = Mathf.Max(1, data.maxHp);
+        currentHp = Mathf.Clamp(data.currentHp, 0, maxHp);
+        maxEnergy = Mathf.Max(0, data.maxEnergy);
+        currentEnergy = Mathf.Clamp(data.currentEnergy, 0, maxEnergy);
+        maxMental = Mathf.Max(0, data.maxMental);
+        currentMental = Mathf.Clamp(data.currentMental, 0, maxMental);
+        attackPower = Mathf.Max(0, data.attackPower);
+
+        attackBuffAmount = 0;
+        attackBuffExpiresAt = -999f;
+        speedBuffAmount = 0;
+        speedBuffExpiresAt = -999f;
+
+        ItemSO weapon = itemCatalog != null ? itemCatalog.GetItem(data.equippedWeaponId) : null;
+        if (weapon != null)
+            EquipWeapon(weapon);
+        else
+            UnequipWeapon();
+
+        StatsChanged?.Invoke();
+    }
 }

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d4b6a78efc49f42a0e783027633d3a, type: 3}
+  m_Name: Consumer_ShadowVial
+  m_EditorClassIdentifier: 
+  id: 130
+  name: Shadow Vial
+  itemType: 1
+  description: A dark brew that boosts escape speed.
+  propertyList:
+  - PropertyType: 3
+    Value: 18
+  icon: {fileID: 21300000, guid: 892ac3e947a34ba489e554c652918931, type: 3}
+  prefab: {fileID: 0}

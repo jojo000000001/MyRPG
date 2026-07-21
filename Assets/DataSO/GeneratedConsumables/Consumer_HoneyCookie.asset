@@ -21,5 +21,5 @@ MonoBehaviour:
     Value: 45
   - PropertyType: 1
     Value: 15
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 8f72879e95e65044ab21eabe047e3152, type: 3}
   prefab: {fileID: 0}

@@ -13,7 +13,6 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private const string LeftName = "Left";
     private const string MidName = "Mid";
     private const string RightName = "Right";
-    private const string ResourceRoot = "UI/HealthBar/";
 
     [Header("Target")]
     [SerializeField] private Player player;
@@ -42,13 +41,36 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private Image fillRightImage;
     private float displayedHealth01 = 1f;
     private bool usingGreenFill;
+    private bool uiBuilt;
 
     private void Start()
     {
+        ResolvePlayer();
+        uiBuilt = false;
         EnsureUi();
         UpdateImmediate();
         PlayerExperienceBar.EnsureForHud(this);
         LevelUpNotice.EnsureForHud(this);
+
+        if (player != null)
+            player.StatsChanged += HandleStatsChanged;
+    }
+
+    private void OnDestroy()
+    {
+        if (player != null)
+            player.StatsChanged -= HandleStatsChanged;
+    }
+
+    private void HandleStatsChanged()
+    {
+        UpdateImmediate();
+    }
+
+    private void ResolvePlayer()
+    {
+        if (player == null)
+            player = FindObjectOfType<Player>();
     }
 
     private void OnValidate()
@@ -61,7 +83,12 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void LateUpdate()
     {
-        EnsureUi();
+        ResolvePlayer();
+        if (player == null)
+            return;
+
+        if (!uiBuilt)
+            EnsureUi();
 
         float target01 = GetHealth01();
         float t = smoothSpeed <= 0f ? 1f : 1f - Mathf.Exp(-smoothSpeed * Time.deltaTime);
@@ -72,6 +99,8 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void EnsureUi()
     {
+        if (uiBuilt && rootRect != null && HasExpectedBarParts())
+            return;
         canvas = GetComponent<Canvas>();
         if (canvas == null)
             canvas = gameObject.AddComponent<Canvas>();
@@ -107,6 +136,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         CacheBarParts();
         ApplyLayout();
         ApplySprites();
+        uiBuilt = rootRect != null && HasExpectedBarParts();
     }
 
     private bool HasExpectedBarParts()
@@ -124,6 +154,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         GameObject oldRoot = rootRect.gameObject;
         rootRect = null;
         fillMaskRect = null;
+        uiBuilt = false;
 
         if (Application.isPlaying)
             Destroy(oldRoot);
@@ -244,10 +275,15 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void ApplySprites()
     {
-        ApplyImage(backLeftImage, "barBack_horizontalLeft");
-        ApplyImage(backMidImage, "barBack_horizontalMid");
-        ApplyImage(backRightImage, "barBack_horizontalRight");
-        ApplyFillSprites(displayedHealth01 >= 0.999f);
+        ApplyBackSprites();
+        ApplyFillSprites(displayedHealth01 >= 0.5f);
+    }
+
+    private void ApplyBackSprites()
+    {
+        HealthBarSprites.ApplyBarImage(backLeftImage, HealthBarSprites.GetBack("Left"), false);
+        HealthBarSprites.ApplyBarImage(backMidImage, HealthBarSprites.GetBack("Mid"), true);
+        HealthBarSprites.ApplyBarImage(backRightImage, HealthBarSprites.GetBack("Right"), false);
     }
 
     private void ApplyFillSprites(bool useGreen)
@@ -255,40 +291,20 @@ public sealed class PlayerHealthBar : MonoBehaviour
         if (useGreen == usingGreenFill && fillLeftImage != null && fillLeftImage.sprite != null)
             return;
 
-        string colorPrefix = useGreen ? "barGreen" : "barRed";
-        ApplyImage(fillLeftImage, colorPrefix + "_horizontalLeft", true);
-        ApplyImage(fillMidImage, colorPrefix + "_horizontalMid", true);
-        ApplyImage(fillRightImage, colorPrefix + "_horizontalRight", true);
+        if (useGreen)
+        {
+            HealthBarSprites.ApplyBarImage(fillLeftImage, HealthBarSprites.GetGreen("Left"), false);
+            HealthBarSprites.ApplyBarImage(fillMidImage, HealthBarSprites.GetGreen("Mid"), true);
+            HealthBarSprites.ApplyBarImage(fillRightImage, HealthBarSprites.GetGreen("Right"), false);
+        }
+        else
+        {
+            HealthBarSprites.ApplyBarImage(fillLeftImage, HealthBarSprites.GetRed("Left"), false);
+            HealthBarSprites.ApplyBarImage(fillMidImage, HealthBarSprites.GetRed("Mid"), true);
+            HealthBarSprites.ApplyBarImage(fillRightImage, HealthBarSprites.GetRed("Right"), false);
+        }
+
         usingGreenFill = useGreen;
-    }
-
-    private static void ApplyImage(Image image, string resourceName)
-    {
-        ApplyImage(image, resourceName, false);
-    }
-
-    private static void ApplyImage(Image image, string resourceName, bool forceSprite)
-    {
-        if (image == null)
-            return;
-
-        if (forceSprite || image.sprite == null)
-            image.sprite = LoadSprite(resourceName);
-
-        image.type = Image.Type.Simple;
-        image.color = Color.white;
-        image.raycastTarget = false;
-    }
-
-    private static Sprite LoadSprite(string resourceName)
-    {
-        Texture2D texture = Resources.Load<Texture2D>(ResourceRoot + resourceName);
-        if (texture == null)
-            return null;
-
-        Rect rect = new Rect(0f, 0f, texture.width, texture.height);
-        Vector2 pivot = new Vector2(0.5f, 0.5f);
-        return Sprite.Create(texture, rect, pivot, 100f, 0, SpriteMeshType.FullRect, Vector4.zero);
     }
 
     private void UpdateImmediate()
