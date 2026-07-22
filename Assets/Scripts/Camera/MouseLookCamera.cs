@@ -16,7 +16,6 @@ public sealed class MouseLookCamera : MonoBehaviour
 
     [Header("Cursor")]
     [SerializeField] private bool lockCursorOnEnable = true;
-    [SerializeField] private KeyCode toggleCursorKey = KeyCode.Escape;
 
     // yaw 负责水平旋转，pitch 负责上下抬头/低头。
     private float _yaw;
@@ -47,12 +46,8 @@ public sealed class MouseLookCamera : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(toggleCursorKey))
-        {
-            bool locked = Cursor.lockState != CursorLockMode.Locked;
-            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !locked;
-        }
+        if (GameplayPauseMenu.IsOpen)
+            return;
 
         if (Cursor.lockState != CursorLockMode.Locked)
             return;

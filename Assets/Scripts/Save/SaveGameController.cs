@@ -26,8 +26,22 @@ public sealed class SaveGameController : MonoBehaviour
 
     private void Start()
     {
-        if (autoLoadOnStart && SaveSystem.HasSave)
-            StartCoroutine(LoadRoutine());
+        if (SaveSession.PendingLoadSlot.HasValue)
+        {
+            int slotIndex = SaveSession.PendingLoadSlot.Value;
+            SaveSession.ClearPending();
+            StartCoroutine(LoadRoutine(slotIndex));
+            return;
+        }
+
+        if (SaveSession.PendingNewGame)
+        {
+            SaveSession.ClearPending();
+            return;
+        }
+
+        if (autoLoadOnStart && SaveSystem.HasActiveSave)
+            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
     }
 
     private void Update()
@@ -39,29 +53,29 @@ public sealed class SaveGameController : MonoBehaviour
             Save();
 
         if (Input.GetKeyDown(loadKey))
-            StartCoroutine(LoadRoutine());
+            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
     }
 
     public void Save()
     {
         ResolveReferences();
-        SaveSystem.Save(player, inventory);
+        SaveSystem.Save(SaveSession.ActiveSlot, player, inventory);
     }
 
     public void Load()
     {
         if (!isLoading)
-            StartCoroutine(LoadRoutine());
+            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
     }
 
-    private IEnumerator LoadRoutine()
+    private IEnumerator LoadRoutine(int slotIndex)
     {
         if (isLoading)
             yield break;
 
         isLoading = true;
 
-        if (!SaveSystem.TryRead(out SaveData data))
+        if (!SaveSystem.TryRead(slotIndex, out SaveData data))
         {
             isLoading = false;
             yield break;
@@ -87,7 +101,7 @@ public sealed class SaveGameController : MonoBehaviour
         }
 
         if (!SaveSystem.Apply(data, player, inventory, itemCatalog))
-            Debug.LogWarning("SaveGameController: Load failed.");
+            Debug.LogWarning($"SaveGameController: Load slot {slotIndex + 1} failed.");
 
         isLoading = false;
     }

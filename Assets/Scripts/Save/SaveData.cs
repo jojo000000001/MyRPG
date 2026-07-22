@@ -5,6 +5,7 @@ public sealed class SaveData
 {
     public int version = 1;
     public string sceneName;
+    public string savedAtUtc;
     public float posX;
     public float posY;
     public float posZ;

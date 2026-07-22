@@ -4370,9 +4370,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   player: {fileID: 6781608451375289610}
+  spriteCatalog: {fileID: 11400000, guid: 2ed1b35b156ce7a44ba9c53cc4f9c6bc, type: 2}
   anchoredPosition: {x: 24, y: -24}
   barSize: {x: 280, y: 28}
   capWidth: 14
+  fillInset: 5
   sortingOrder: 100
   smoothSpeed: 14
 --- !u!114 &1706018193

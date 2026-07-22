@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -89,21 +88,14 @@ public sealed class LoginUI : MonoBehaviour
         PlayerPrefs.SetString(LastUsernameKey, username);
         PlayerPrefs.Save();
 
-        GameplayCursor.LockForGameplay();
+        GameplayCursor.UnlockForUI();
 
         LoadGameplayScene();
     }
 
     private void LoadGameplayScene()
     {
-        int buildIndex = SceneUtility.GetBuildIndexByScenePath($"Assets/Scenes/{gameSceneName}.scene");
-        if (buildIndex < 0)
-            buildIndex = SceneUtility.GetBuildIndexByScenePath($"Assets/Scenes/{gameSceneName}.unity");
-
-        if (buildIndex >= 0)
-            SceneManager.LoadScene(buildIndex, LoadSceneMode.Single);
-        else
-            SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+        GameSceneLoader.Load(gameSceneName);
     }
 
     private void SetStatus(string message)

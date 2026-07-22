@@ -7,9 +7,31 @@ using UnityEngine.UI;
 public static class HealthBarSprites
 {
     private const string ResourceRoot = "UI/HealthBar/";
+    private const string CatalogResourcePath = "HealthBarSpriteCatalog";
     private static HealthBarSpriteCatalog catalog;
 
-    public static bool HasCatalog => EnsureCatalog() != null && EnsureCatalog().HasBackSprites;
+    public static bool HasCatalog =>
+        GetBack("Mid") != null ||
+        GetGreen("Mid") != null ||
+        GetBlue("Mid") != null;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetCatalog()
+    {
+        catalog = null;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void PreloadCatalog()
+    {
+        EnsureCatalog();
+    }
+
+    public static void BindCatalog(HealthBarSpriteCatalog explicitCatalog)
+    {
+        if (explicitCatalog != null)
+            catalog = explicitCatalog;
+    }
 
     public static Sprite GetBack(string segment)
     {
@@ -69,7 +91,7 @@ public static class HealthBarSprites
         if (catalog != null)
             return catalog;
 
-        catalog = Resources.Load<HealthBarSpriteCatalog>("HealthBarSpriteCatalog");
+        catalog = Resources.Load<HealthBarSpriteCatalog>(CatalogResourcePath);
         if (catalog == null)
         {
             HealthBarSpriteCatalog[] all = Resources.FindObjectsOfTypeAll<HealthBarSpriteCatalog>();
@@ -110,14 +132,33 @@ public static class HealthBarSprites
             SpriteMeshType.FullRect);
     }
 
-    public static void ApplyBarImage(Image image, Sprite sprite, bool isMidSegment)
+    public static void ApplyBarImage(Image image, Sprite sprite, bool isMidSegment, Color fallbackColor)
     {
         if (image == null)
             return;
 
         image.sprite = sprite;
         image.type = isMidSegment && sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.color = Color.white;
+        image.preserveAspect = false;
+        image.color = sprite != null ? Color.white : fallbackColor;
         image.raycastTarget = false;
+        image.enabled = true;
+        image.material = null;
     }
+
+    public static void ApplyBarImage(Image image, Sprite sprite, bool isMidSegment)
+    {
+        ApplyBackBarImage(image, sprite, isMidSegment);
+    }
+
+    /// <summary>
+    /// Kenney barBack sprites are mostly transparent; keep a dark fallback when sprites fail to load.
+    /// </summary>
+    public static void ApplyBackBarImage(Image image, Sprite sprite, bool isMidSegment)
+    {
+        Color fallback = new Color(0.12f, 0.08f, 0.06f, 0.95f);
+        ApplyBarImage(image, sprite, isMidSegment, fallback);
+    }
+
+    public static readonly Color TrackPlateColor = new Color(0.03f, 0.025f, 0.02f, 0.92f);
 }

@@ -12,11 +12,13 @@ public sealed class PlayerExperienceBar : MonoBehaviour
 
     [Header("Target")]
     [SerializeField] private Player player;
+    [SerializeField] private HealthBarSpriteCatalog spriteCatalog;
 
     [Header("Layout")]
-    [SerializeField] private Vector2 anchoredPosition = new Vector2(24f, -56f);
+    [SerializeField] private Vector2 anchoredPosition = new Vector2(24f, -60f);
     [SerializeField] private Vector2 barSize = new Vector2(280f, 18f);
     [SerializeField] private float capWidth = 12f;
+    [SerializeField] private float fillInset = 2f;
     [SerializeField] private float labelHeight = 20f;
     [SerializeField] private float labelBarGap = 4f;
     [SerializeField] private float smoothSpeed = 12f;
@@ -30,19 +32,43 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     private TextMeshProUGUI levelText;
     private TextMeshProUGUI expText;
     private float displayedProgress01;
+    private bool spritesReady;
 
     public static void EnsureForHud(PlayerHealthBar healthBar)
     {
         if (healthBar == null)
             return;
 
-        if (healthBar.GetComponent<PlayerExperienceBar>() == null)
-            healthBar.gameObject.AddComponent<PlayerExperienceBar>();
+        PlayerExperienceBar experienceBar = healthBar.GetComponent<PlayerExperienceBar>();
+        if (experienceBar == null)
+            experienceBar = healthBar.gameObject.AddComponent<PlayerExperienceBar>();
+
+        experienceBar.AdoptCatalog(healthBar.SpriteCatalog);
+    }
+
+    internal void AdoptCatalog(HealthBarSpriteCatalog sharedCatalog)
+    {
+        if (sharedCatalog != null)
+            spriteCatalog = sharedCatalog;
+
+        ResolveCatalogReference();
+        HealthBarSprites.BindCatalog(spriteCatalog);
+
+        if (rootRect != null)
+            RefreshBarSprites();
+    }
+
+    private void Awake()
+    {
+        ResolveCatalogReference();
+        HealthBarSprites.BindCatalog(spriteCatalog);
     }
 
     private void Start()
     {
         ResolvePlayer();
+        ResolveCatalogReference();
+        HealthBarSprites.BindCatalog(spriteCatalog);
         EnsureUi();
         UpdateImmediate();
 
@@ -67,6 +93,14 @@ public sealed class PlayerExperienceBar : MonoBehaviour
             player = FindObjectOfType<Player>();
     }
 
+    private void ResolveCatalogReference()
+    {
+        if (spriteCatalog != null)
+            return;
+
+        spriteCatalog = Resources.Load<HealthBarSpriteCatalog>("HealthBarSpriteCatalog");
+    }
+
     private void LateUpdate()
     {
         ResolvePlayer();
@@ -83,6 +117,12 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         float t = smoothSpeed <= 0f ? 1f : 1f - Mathf.Exp(-smoothSpeed * Time.deltaTime);
         displayedProgress01 = Mathf.Lerp(displayedProgress01, target01, t);
 
+        if (!spritesReady && HealthBarSprites.HasCatalog)
+        {
+            RefreshBarSprites();
+            spritesReady = true;
+        }
+
         UpdateFill(displayedProgress01);
         UpdateLabels();
     }
@@ -96,7 +136,9 @@ public sealed class PlayerExperienceBar : MonoBehaviour
             CacheParts();
             if (HasExpectedParts())
             {
+                EnsureTrackPlate();
                 ApplyLayout();
+                RefreshBarSprites();
                 return;
             }
 
@@ -127,6 +169,7 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         ConfigureLabel(expText, TextAlignmentOptions.Right, 16f);
         expText.color = expTextColor;
 
+        CreateTrackPlate(root.transform);
         CreateBar(root.transform, "Back", BarFillKind.None);
         GameObject fillMask = new GameObject("FillMask", typeof(RectTransform), typeof(RectMask2D));
         fillMask.transform.SetParent(root.transform, false);
@@ -135,6 +178,52 @@ public sealed class PlayerExperienceBar : MonoBehaviour
 
         CacheParts();
         ApplyLayout();
+        RefreshBarSprites();
+    }
+
+    private void RefreshBarSprites()
+    {
+        ApplySpritesToGroup(rootRect != null ? rootRect.Find("Back") : null, BarFillKind.None);
+        if (fillMaskRect != null)
+            ApplySpritesToGroup(fillMaskRect.Find("Fill"), BarFillKind.Blue);
+    }
+
+    private void ApplySpritesToGroup(Transform group, BarFillKind fillKind)
+    {
+        if (group == null)
+            return;
+
+        ApplySpriteToSegment(group.Find("Left"), "Left", fillKind);
+        ApplySpriteToSegment(group.Find("Mid"), "Mid", fillKind);
+        ApplySpriteToSegment(group.Find("Right"), "Right", fillKind);
+    }
+
+    private void ApplySpriteToSegment(Transform segment, string name, BarFillKind fillKind)
+    {
+        if (segment == null)
+            return;
+
+        Image image = segment.GetComponent<Image>();
+        if (image == null)
+            return;
+
+        Sprite sprite = fillKind switch
+        {
+            BarFillKind.Blue => HealthBarSprites.GetBlue(name),
+            _ => HealthBarSprites.GetBack(name),
+        };
+
+        if (fillKind == BarFillKind.Blue)
+        {
+            HealthBarSprites.ApplyBarImage(
+                image,
+                sprite,
+                name == "Mid",
+                new Color(0.35f, 0.65f, 1f, 1f));
+            return;
+        }
+
+        HealthBarSprites.ApplyBackBarImage(image, sprite, name == "Mid");
     }
 
     private bool HasExpectedParts()
@@ -175,7 +264,38 @@ public sealed class PlayerExperienceBar : MonoBehaviour
             _ => HealthBarSprites.GetBack(name),
         };
 
-        HealthBarSprites.ApplyBarImage(image, sprite, name == "Mid");
+        if (fillKind == BarFillKind.Blue)
+        {
+            HealthBarSprites.ApplyBarImage(
+                image,
+                sprite,
+                name == "Mid",
+                new Color(0.35f, 0.65f, 1f, 1f));
+            return;
+        }
+
+        HealthBarSprites.ApplyBackBarImage(image, sprite, name == "Mid");
+    }
+
+    private static void CreateTrackPlate(Transform parent)
+    {
+        GameObject plate = new GameObject("TrackPlate", typeof(RectTransform), typeof(Image));
+        plate.transform.SetParent(parent, false);
+        plate.transform.SetAsFirstSibling();
+        Image plateImage = plate.GetComponent<Image>();
+        plateImage.raycastTarget = false;
+        plateImage.color = HealthBarSprites.TrackPlateColor;
+    }
+
+    private void EnsureTrackPlate()
+    {
+        if (rootRect == null)
+            return;
+
+        if (rootRect.Find("TrackPlate") != null)
+            return;
+
+        CreateTrackPlate(rootRect);
     }
 
     private void CacheParts()
@@ -195,6 +315,8 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     {
         if (rootRect == null || levelText == null || expText == null)
             return;
+
+        EnsureTrackPlate();
 
         rootRect.anchorMin = new Vector2(0f, 1f);
         rootRect.anchorMax = new Vector2(0f, 1f);
@@ -218,15 +340,19 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         expRect.anchoredPosition = new Vector2(0f, 0f);
         expRect.sizeDelta = new Vector2(0f, labelHeight);
 
+        LayoutBarGroupTop(rootRect.Find("TrackPlate") as RectTransform, barSize, barTop);
         LayoutBarGroupTop(rootRect.Find("Back") as RectTransform, barSize, barTop);
         if (fillMaskRect != null)
         {
             fillMaskRect.anchorMin = new Vector2(0f, 1f);
             fillMaskRect.anchorMax = new Vector2(0f, 1f);
             fillMaskRect.pivot = new Vector2(0f, 1f);
-            fillMaskRect.anchoredPosition = new Vector2(0f, barTop);
-            fillMaskRect.sizeDelta = new Vector2(barSize.x, barSize.y);
-            LayoutBarGroupTop(fillMaskRect.Find("Fill") as RectTransform, barSize, 0f);
+            fillMaskRect.anchoredPosition = new Vector2(fillInset, barTop);
+            fillMaskRect.sizeDelta = new Vector2(Mathf.Max(0f, barSize.x - fillInset * 2f), barSize.y);
+            LayoutBarGroupTop(
+                fillMaskRect.Find("Fill") as RectTransform,
+                new Vector2(Mathf.Max(0f, barSize.x - fillInset * 2f), barSize.y),
+                0f);
         }
     }
 
@@ -270,7 +396,8 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         if (fillMaskRect == null)
             return;
 
-        fillMaskRect.sizeDelta = new Vector2(barSize.x * Mathf.Clamp01(progress01), barSize.y);
+        float innerWidth = Mathf.Max(0f, barSize.x - fillInset * 2f);
+        fillMaskRect.sizeDelta = new Vector2(innerWidth * Mathf.Clamp01(progress01), barSize.y);
     }
 
     private void UpdateLabels()
@@ -288,10 +415,10 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     private void ConfigureLabel(TextMeshProUGUI label, TextAlignmentOptions alignment, float fontSize)
     {
         label.alignment = alignment;
-        label.color = labelColor;
-        label.outlineWidth = 0.2f;
-        label.outlineColor = new Color32(20, 12, 8, 200);
         ChineseUITmpFont.Apply(label, fontSize, FontStyles.Bold);
+        label.color = labelColor;
+        label.outlineWidth = 0.22f;
+        label.outlineColor = new Color32(20, 12, 8, 220);
     }
 
     private void OnValidate()
