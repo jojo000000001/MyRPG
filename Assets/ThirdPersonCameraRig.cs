@@ -63,6 +63,11 @@ public class ThirdPersonCameraRig : MonoBehaviour
 
     private void Start()
     {
+        SnapToTarget();
+    }
+
+    public void SnapToTarget()
+    {
         SnapImmediate();
     }
 

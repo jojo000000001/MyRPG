@@ -1,6 +1,4 @@
-using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 public sealed class SaveGameController : MonoBehaviour
@@ -15,8 +13,6 @@ public sealed class SaveGameController : MonoBehaviour
     [SerializeField] private KeyCode loadKey = KeyCode.F9;
     [SerializeField] private bool autoLoadOnStart;
 
-    private bool isLoading;
-
     private void Awake()
     {
         ResolveReferences();
@@ -26,90 +22,61 @@ public sealed class SaveGameController : MonoBehaviour
 
     private void Start()
     {
-        if (SaveSession.PendingLoadSlot.HasValue)
-        {
-            int slotIndex = SaveSession.PendingLoadSlot.Value;
-            SaveSession.ClearPending();
-            StartCoroutine(LoadRoutine(slotIndex));
-            return;
-        }
-
         if (SaveSession.PendingNewGame)
-        {
-            SaveSession.ClearPending();
             return;
-        }
 
-        if (autoLoadOnStart && SaveSystem.HasActiveSave)
-            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
+        if (SaveSession.PendingLoadSlot.HasValue)
+            return;
+
+        if (autoLoadOnStart && SaveSession.HasValidActiveSlot && SaveSystem.HasSave(SaveSession.ActiveSlot))
+            SaveLoadService.LoadSlotAsync(SaveSession.ActiveSlot, this);
     }
 
     private void Update()
     {
-        if (isLoading)
-            return;
-
         if (Input.GetKeyDown(saveKey))
             Save();
 
-        if (Input.GetKeyDown(loadKey))
-            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
+        if (Input.GetKeyDown(loadKey) && SaveSession.HasValidActiveSlot)
+            SaveLoadService.LoadSlotAsync(SaveSession.ActiveSlot, this);
     }
 
     public void Save()
     {
-        ResolveReferences();
-        SaveSystem.Save(SaveSession.ActiveSlot, player, inventory);
-    }
-
-    public void Load()
-    {
-        if (!isLoading)
-            StartCoroutine(LoadRoutine(SaveSession.ActiveSlot));
-    }
-
-    private IEnumerator LoadRoutine(int slotIndex)
-    {
-        if (isLoading)
-            yield break;
-
-        isLoading = true;
-
-        if (!SaveSystem.TryRead(slotIndex, out SaveData data))
+        if (!SaveSession.HasValidActiveSlot)
         {
-            isLoading = false;
-            yield break;
-        }
-
-        string activeScene = SceneManager.GetActiveScene().name;
-        if (!string.IsNullOrEmpty(data.sceneName) && data.sceneName != activeScene)
-        {
-            AsyncOperation loadOperation = SceneManager.LoadSceneAsync(data.sceneName);
-            while (loadOperation != null && !loadOperation.isDone)
-                yield return null;
-
-            yield return null;
-            ResolveReferences();
+            Debug.LogWarning("SaveGameController: No active save slot.");
+            return;
         }
 
         ResolveReferences();
         if (player == null || inventory == null)
         {
-            Debug.LogWarning("SaveGameController: Player or Inventory not found after load.");
-            isLoading = false;
-            yield break;
+            Debug.LogWarning("SaveGameController: Missing player or inventory.");
+            return;
         }
 
-        if (!SaveSystem.Apply(data, player, inventory, itemCatalog))
-            Debug.LogWarning($"SaveGameController: Load slot {slotIndex + 1} failed.");
+        bool saved = SaveSystem.Save(SaveSession.ActiveSlot, player, inventory);
+        if (saved)
+            Debug.Log($"SaveGameController: Quick saved to slot {SaveSession.ActiveSlot + 1}.");
+    }
 
-        isLoading = false;
+    public void Load()
+    {
+        if (!SaveSession.HasValidActiveSlot)
+            return;
+
+        SaveLoadService.LoadSlotAsync(SaveSession.ActiveSlot, this);
     }
 
     private void ResolveReferences()
     {
         if (player == null)
-            player = FindObjectOfType<Player>();
+        {
+            player = Player.ActiveInstance != null
+                ? Player.ActiveInstance
+                : FindObjectOfType<Player>();
+        }
 
         if (inventory == null && player != null)
             inventory = player.GetComponent<Inventory>();

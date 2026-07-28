@@ -26,6 +26,7 @@ public sealed class GameplayPauseMenu : MonoBehaviour
     private GameObject menuCard;
     private Text statusText;
     private MainMenuSettingsPanel settingsPanel;
+    private GameplaySaveSlotPanel saveSlotPanel;
     private float previousTimeScale = 1f;
     private bool isOpen;
 
@@ -56,12 +57,19 @@ public sealed class GameplayPauseMenu : MonoBehaviour
     {
         ResolveReferences();
         settingsPanel = MainMenuSettingsPanel.Ensure(transform);
+        saveSlotPanel = GameplaySaveSlotPanel.Ensure(transform);
     }
 
     private void Update()
     {
         if (!Input.GetKeyDown(toggleKey))
             return;
+
+        if (saveSlotPanel != null && saveSlotPanel.IsVisible)
+        {
+            CloseSaveSlots();
+            return;
+        }
 
         if (settingsPanel != null && IsSettingsVisible())
         {
@@ -113,6 +121,7 @@ public sealed class GameplayPauseMenu : MonoBehaviour
             return;
 
         settingsPanel?.Hide();
+        saveSlotPanel?.Hide();
         ForceResume();
     }
 
@@ -128,7 +137,7 @@ public sealed class GameplayPauseMenu : MonoBehaviour
         GameplayCursor.LockForGameplay();
     }
 
-    private void SaveGame()
+    private void OpenSaveSlots()
     {
         ResolveReferences();
         if (player == null || inventory == null)
@@ -137,10 +146,30 @@ public sealed class GameplayPauseMenu : MonoBehaviour
             return;
         }
 
-        bool saved = SaveSystem.Save(SaveSession.ActiveSlot, player, inventory);
-        ShowStatus(saved
-            ? $"已保存到存档 {SaveSession.ActiveSlot + 1}"
-            : "保存失败");
+        if (saveSlotPanel == null)
+            saveSlotPanel = GameplaySaveSlotPanel.Ensure(transform);
+
+        if (root != null)
+            root.SetActive(false);
+
+        saveSlotPanel.transform.SetAsLastSibling();
+        saveSlotPanel.Show(
+            player,
+            inventory,
+            _ => { },
+            CloseSaveSlots);
+    }
+
+    private void CloseSaveSlots()
+    {
+        if (root != null)
+        {
+            root.SetActive(true);
+            root.transform.SetAsLastSibling();
+        }
+
+        if (menuCard != null)
+            menuCard.SetActive(true);
     }
 
     private void OpenSettings()
@@ -226,7 +255,7 @@ public sealed class GameplayPauseMenu : MonoBehaviour
         PlaceTop(title.rectTransform, -24f, 48f);
 
         CreateMenuButton(menuCard.transform, "ContinueButton", "继续游戏", 0.68f, Resume);
-        CreateMenuButton(menuCard.transform, "SaveButton", "保存游戏", 0.52f, SaveGame);
+        CreateMenuButton(menuCard.transform, "SaveButton", "保存游戏", 0.52f, OpenSaveSlots);
         CreateMenuButton(menuCard.transform, "SettingsButton", "设置", 0.36f, OpenSettings);
         CreateMenuButton(menuCard.transform, "MainMenuButton", "返回主菜单", 0.20f, ReturnToMainMenu);
 

@@ -91,7 +91,7 @@ public static class MainMenuUISceneBuilder
         cardRect.anchorMin = new Vector2(0.5f, 0.5f);
         cardRect.anchorMax = new Vector2(0.5f, 0.5f);
         cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(480f, 580f);
+        cardRect.sizeDelta = new Vector2(480f, 480f);
         ConfigureImage(card.GetComponent<Image>(), panelSprite, Image.Type.Sliced, Color.white);
 
         Text title = CreateText(card, "Title", "MyRPG", 36, TextAnchor.MiddleCenter, FontStyle.Bold, PrimaryTextColor);
@@ -103,16 +103,13 @@ public static class MainMenuUISceneBuilder
         titleRect.sizeDelta = new Vector2(-48f, 52f);
 
         Button continueGameButton = CreateButton(card.transform, "ContinueGameButton", "继续游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
-        PlaceMenuButton(continueGameButton.GetComponent<RectTransform>(), 0.76f);
+        PlaceMenuButton(continueGameButton.GetComponent<RectTransform>(), 0.68f);
 
         Button startGameButton = CreateButton(card.transform, "StartGameButton", "开始游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
-        PlaceMenuButton(startGameButton.GetComponent<RectTransform>(), 0.62f);
-
-        Button loadSaveButton = CreateButton(card.transform, "LoadSaveButton", "读取存档", buttonSprite, buttonPressedSprite, ButtonTextColor);
-        PlaceMenuButton(loadSaveButton.GetComponent<RectTransform>(), 0.48f);
+        PlaceMenuButton(startGameButton.GetComponent<RectTransform>(), 0.52f);
 
         Button settingsButton = CreateButton(card.transform, "SettingsButton", "设置", buttonSprite, buttonPressedSprite, ButtonTextColor);
-        PlaceMenuButton(settingsButton.GetComponent<RectTransform>(), 0.34f);
+        PlaceMenuButton(settingsButton.GetComponent<RectTransform>(), 0.36f);
 
         Button quitButton = CreateButton(card.transform, "QuitButton", "退出游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
         PlaceMenuButton(quitButton.GetComponent<RectTransform>(), 0.20f);
@@ -121,7 +118,6 @@ public static class MainMenuUISceneBuilder
         SerializedObject serializedMenu = new SerializedObject(menuUI);
         serializedMenu.FindProperty("continueGameButton").objectReferenceValue = continueGameButton;
         serializedMenu.FindProperty("startGameButton").objectReferenceValue = startGameButton;
-        serializedMenu.FindProperty("loadSaveButton").objectReferenceValue = loadSaveButton;
         serializedMenu.FindProperty("settingsButton").objectReferenceValue = settingsButton;
         serializedMenu.FindProperty("quitButton").objectReferenceValue = quitButton;
         serializedMenu.FindProperty("gameSceneName").stringValue = "SampleScene";

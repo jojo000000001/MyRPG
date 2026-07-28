@@ -6,7 +6,7 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// 开始界面：继续游戏、开始游戏、读取存档、设置、退出。
+/// 开始界面：继续游戏、开始游戏、设置、退出。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class MainMenuUI : MonoBehaviour
@@ -19,7 +19,6 @@ public sealed class MainMenuUI : MonoBehaviour
     [Header("Buttons")]
     [SerializeField] private Button continueGameButton;
     [SerializeField] private Button startGameButton;
-    [SerializeField] private Button loadSaveButton;
     [SerializeField] private Button settingsButton;
     [SerializeField] private Button quitButton;
 
@@ -49,7 +48,7 @@ public sealed class MainMenuUI : MonoBehaviour
 
         RectTransform cardRect = menuCard as RectTransform;
         if (cardRect != null)
-            cardRect.sizeDelta = new Vector2(cardRect.sizeDelta.x, 580f);
+            cardRect.sizeDelta = new Vector2(cardRect.sizeDelta.x, 480f);
 
         if (continueGameButton == null)
         {
@@ -70,11 +69,19 @@ public sealed class MainMenuUI : MonoBehaviour
                 continueLabel.text = "继续游戏";
         }
 
-        PlaceMenuButton(menuCard, "ContinueGameButton", 0.76f);
-        PlaceMenuButton(menuCard, "StartGameButton", 0.62f);
-        PlaceMenuButton(menuCard, "LoadSaveButton", 0.48f);
-        PlaceMenuButton(menuCard, "SettingsButton", 0.34f);
+        HideLegacyButton(menuCard, "LoadSaveButton");
+
+        PlaceMenuButton(menuCard, "ContinueGameButton", 0.68f);
+        PlaceMenuButton(menuCard, "StartGameButton", 0.52f);
+        PlaceMenuButton(menuCard, "SettingsButton", 0.36f);
         PlaceMenuButton(menuCard, "QuitButton", 0.20f);
+    }
+
+    private static void HideLegacyButton(Transform menuCard, string buttonName)
+    {
+        Transform buttonTransform = menuCard.Find(buttonName);
+        if (buttonTransform != null)
+            buttonTransform.gameObject.SetActive(false);
     }
 
     private static void PlaceMenuButton(Transform menuCard, string buttonName, float anchorY)
@@ -82,6 +89,8 @@ public sealed class MainMenuUI : MonoBehaviour
         Transform buttonTransform = menuCard.Find(buttonName);
         if (buttonTransform == null)
             return;
+
+        buttonTransform.gameObject.SetActive(true);
 
         RectTransform rect = buttonTransform as RectTransform;
         if (rect == null)
@@ -96,14 +105,13 @@ public sealed class MainMenuUI : MonoBehaviour
 
     private void OnEnable()
     {
+        RefreshSaveButtonStates();
+
         if (continueGameButton != null)
             continueGameButton.onClick.AddListener(ContinueGame);
 
         if (startGameButton != null)
-            startGameButton.onClick.AddListener(StartNewGame);
-
-        if (loadSaveButton != null)
-            loadSaveButton.onClick.AddListener(OpenLoadSlots);
+            startGameButton.onClick.AddListener(OpenStartPanel);
 
         if (settingsButton != null)
             settingsButton.onClick.AddListener(OpenSettings);
@@ -118,10 +126,7 @@ public sealed class MainMenuUI : MonoBehaviour
             continueGameButton.onClick.RemoveListener(ContinueGame);
 
         if (startGameButton != null)
-            startGameButton.onClick.RemoveListener(StartNewGame);
-
-        if (loadSaveButton != null)
-            loadSaveButton.onClick.RemoveListener(OpenLoadSlots);
+            startGameButton.onClick.RemoveListener(OpenStartPanel);
 
         if (settingsButton != null)
             settingsButton.onClick.RemoveListener(OpenSettings);
@@ -148,33 +153,16 @@ public sealed class MainMenuUI : MonoBehaviour
         GameSceneLoader.Load(sceneName);
     }
 
-    private void StartNewGame()
+    private void OpenStartPanel()
     {
         if (isNavigating)
-            return;
-
-        settingsPanel?.Hide();
-        saveSlotPanel?.Hide();
-
-        int slotIndex = SaveSystem.FindPreferredNewGameSlot();
-        SaveSession.BeginNewGame(slotIndex);
-        SaveSystem.Delete(slotIndex);
-        OnNavigateStarted();
-
-        GameplayCursor.LockForGameplay();
-        GameSceneLoader.Load(gameSceneName);
-    }
-
-    private void OpenLoadSlots()
-    {
-        if (isNavigating || !SaveSystem.HasAnySave())
             return;
 
         settingsPanel?.Hide();
         if (saveSlotPanel == null)
             saveSlotPanel = MainMenuSaveSlotPanel.Ensure(transform);
 
-        saveSlotPanel.ShowLoad(gameSceneName, OnNavigateStarted);
+        saveSlotPanel.ShowStart(gameSceneName, OnNavigateStarted);
     }
 
     private void OpenSettings()
@@ -203,9 +191,6 @@ public sealed class MainMenuUI : MonoBehaviour
             if (!hasAnySave)
                 SetButtonLabelColor(continueGameButton, MutedButtonTextColor);
         }
-
-        if (loadSaveButton != null)
-            loadSaveButton.interactable = hasAnySave;
     }
 
     private void QuitGame()
@@ -226,9 +211,6 @@ public sealed class MainMenuUI : MonoBehaviour
 
         if (startGameButton != null)
             startGameButton.interactable = interactable;
-
-        if (loadSaveButton != null)
-            loadSaveButton.interactable = interactable && hasAnySave;
 
         if (settingsButton != null)
             settingsButton.interactable = interactable;

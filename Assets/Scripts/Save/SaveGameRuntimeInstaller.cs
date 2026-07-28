@@ -12,10 +12,17 @@ static class SaveGameRuntimeInstaller
         if (!scene.IsValid() || scene.name != GameplaySceneName)
             return;
 
+        EnsureSaveGameController();
+    }
+
+    public static void EnsureSaveGameController()
+    {
         if (Object.FindObjectOfType<SaveGameController>() != null)
             return;
 
-        Player player = Object.FindObjectOfType<Player>();
+        Player player = Player.ActiveInstance != null
+            ? Player.ActiveInstance
+            : Object.FindObjectOfType<Player>();
         if (player == null)
             return;
 

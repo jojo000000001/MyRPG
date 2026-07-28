@@ -11,7 +11,7 @@ public static class SaveSystem
 
     public static string SavePath => GetSavePath(SaveSession.ActiveSlot);
 
-    public static bool HasActiveSave => HasSave(SaveSession.ActiveSlot);
+    public static bool HasActiveSave => SaveSession.HasValidActiveSlot && HasSave(SaveSession.ActiveSlot);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void MigrateLegacySaveIfNeeded()
@@ -218,7 +218,7 @@ public static class SaveSystem
 
         player.ApplySaveData(data.player, itemCatalog);
         inventory.ApplySaveData(data.inventory, itemCatalog);
-        ApplyTransform(player, data);
+        ApplyPlayerTransform(player, data);
         Debug.Log("SaveSystem: Save applied.");
         return true;
     }
@@ -253,19 +253,41 @@ public static class SaveSystem
         };
     }
 
-    private static void ApplyTransform(Player player, SaveData data)
+    public static void ApplyPlayerTransform(Player player, SaveData data)
     {
+        if (player == null || data == null)
+            return;
+
+        Vector3 position = new Vector3(data.posX, data.posY, data.posZ);
+        Quaternion rotation = Quaternion.Euler(0f, data.rotY, 0f);
+        Transform transform = player.transform;
+
         CharacterController controller = player.GetComponent<CharacterController>();
         if (controller != null)
             controller.enabled = false;
 
-        Transform transform = player.transform;
-        transform.SetPositionAndRotation(
-            new Vector3(data.posX, data.posY, data.posZ),
-            Quaternion.Euler(0f, data.rotY, 0f));
+        Rigidbody rigidbody = player.GetComponent<Rigidbody>();
+        if (rigidbody != null)
+        {
+            rigidbody.velocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+        }
+
+        transform.SetPositionAndRotation(position, rotation);
+
+        if (rigidbody != null)
+        {
+            rigidbody.position = position;
+            rigidbody.rotation = rotation;
+        }
 
         if (controller != null)
+        {
             controller.enabled = true;
+            controller.Move(Vector3.zero);
+        }
+
+        Physics.SyncTransforms();
     }
 
     private static string FormatSavedAt(string savedAtUtc)

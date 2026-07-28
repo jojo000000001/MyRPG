@@ -5,7 +5,9 @@ public static class SaveSession
 {
     public const int InvalidSlot = -1;
 
-    public static int ActiveSlot { get; private set; }
+    public static int ActiveSlot { get; private set; } = InvalidSlot;
+
+    public static bool HasValidActiveSlot => ActiveSlot >= 0 && ActiveSlot < SaveSystem.SlotCount;
 
     public static int? PendingLoadSlot { get; private set; }
 

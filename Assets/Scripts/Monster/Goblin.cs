@@ -124,6 +124,8 @@ public class Goblin : Monster, IPoolable
 
     public void OnReturnedToPool()
     {
+        BgmManager.NotifyGoblinDisengaged(GetInstanceID());
+
         if (releaseRoutine != null)
         {
             StopCoroutine(releaseRoutine);
@@ -360,7 +362,9 @@ public class Goblin : Monster, IPoolable
         if (currentState == nextState && nextState != State.Attack)
             return;
 
+        State previousState = currentState;
         currentState = nextState;
+        UpdateCombatMusic(previousState, nextState);
 
         switch (currentState)
         {
@@ -380,6 +384,22 @@ public class Goblin : Monster, IPoolable
                 SetLocomotionSpeed01(0f);
                 break;
         }
+    }
+
+    private static bool IsCombatState(State state)
+    {
+        return state == State.Chase || state == State.Attack;
+    }
+
+    private void UpdateCombatMusic(State previousState, State nextState)
+    {
+        bool wasCombat = IsCombatState(previousState);
+        bool isCombat = IsCombatState(nextState);
+
+        if (!wasCombat && isCombat)
+            BgmManager.NotifyGoblinEngaged(GetInstanceID());
+        else if (wasCombat && !isCombat)
+            BgmManager.NotifyGoblinDisengaged(GetInstanceID());
     }
 
     // 开始一次攻击，记录计时并触发可选的攻击动画参数。
@@ -695,6 +715,7 @@ public class Goblin : Monster, IPoolable
     protected override void OnDeath()
     {
         base.OnDeath();
+        BgmManager.NotifyGoblinDisengaged(GetInstanceID());
         currentState = State.Dead;
         verticalVelocity = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;

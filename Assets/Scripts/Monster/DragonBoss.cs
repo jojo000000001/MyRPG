@@ -251,6 +251,7 @@ public sealed class DragonBoss : Monster
     protected override void OnDeath()
     {
         base.OnDeath();
+        BgmManager.NotifyDragonDisengaged(GetInstanceID());
         currentState = State.Dead;
         verticalVelocity = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;
@@ -344,7 +345,9 @@ public sealed class DragonBoss : Monster
         if (currentState == State.Dead || nextState == currentState)
             return;
 
+        State previousState = currentState;
         currentState = nextState;
+        UpdateCombatMusic(previousState, nextState);
 
         switch (nextState)
         {
@@ -362,6 +365,22 @@ public sealed class DragonBoss : Monster
                 TriggerAttackAnimation();
                 break;
         }
+    }
+
+    private static bool IsCombatState(State state)
+    {
+        return state == State.Chase || state == State.Attack;
+    }
+
+    private void UpdateCombatMusic(State previousState, State nextState)
+    {
+        bool wasCombat = IsCombatState(previousState);
+        bool isCombat = IsCombatState(nextState);
+
+        if (!wasCombat && isCombat)
+            BgmManager.NotifyDragonEngaged(GetInstanceID());
+        else if (wasCombat && !isCombat)
+            BgmManager.NotifyDragonDisengaged(GetInstanceID());
     }
 
     private void TriggerAttackAnimation()
