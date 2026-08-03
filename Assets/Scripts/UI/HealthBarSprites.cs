@@ -156,9 +156,42 @@ public static class HealthBarSprites
     /// </summary>
     public static void ApplyBackBarImage(Image image, Sprite sprite, bool isMidSegment)
     {
-        Color fallback = new Color(0.12f, 0.08f, 0.06f, 0.95f);
-        ApplyBarImage(image, sprite, isMidSegment, fallback);
+        ApplyBarImage(image, sprite, isMidSegment, HudBarVisualStyle.BackBarFallback);
+        if (sprite != null && image != null)
+            image.color = HudBarVisualStyle.BackBarTint;
     }
 
-    public static readonly Color TrackPlateColor = new Color(0.03f, 0.025f, 0.02f, 0.92f);
+    public static readonly Color TrackPlateColor = new Color(0.10f, 0.14f, 0.22f, 0.35f);
+}
+
+/// <summary>
+/// 左上角 HUD 血条/经验条共用的尺寸与底色。
+/// </summary>
+public static class HudBarVisualStyle
+{
+    public static readonly Vector2 BarSize = new Vector2(280f, 18f);
+    public const float CapWidth = 12f;
+    public const float FillInset = 2f;
+    public const float BarStackGap = 8f;
+
+    public static readonly Vector2 HealthAnchoredPosition = new Vector2(24f, -24f);
+
+    public static readonly Color BackBarTint = new Color(0.72f, 0.80f, 0.92f, 0.42f);
+    public static readonly Color BackBarFallback = new Color(0.16f, 0.22f, 0.32f, 0.82f);
+
+    public static readonly Color GreenFillTint = new Color(0.38f, 0.88f, 0.44f, 1f);
+    public static readonly Color RedFillTint = new Color(0.98f, 0.38f, 0.30f, 1f);
+    public static readonly Color BlueFillTint = new Color(0.42f, 0.72f, 1f, 1f);
+
+    public static Vector2 ComputeExpBarAnchoredPosition(
+        float labelHeight,
+        float labelBarGap,
+        Vector2? healthAnchoredPosition = null,
+        Vector2? healthBarSize = null)
+    {
+        Vector2 healthPos = healthAnchoredPosition ?? HealthAnchoredPosition;
+        float healthHeight = (healthBarSize ?? BarSize).y;
+        float healthBottom = healthPos.y - healthHeight;
+        return new Vector2(healthPos.x, healthBottom - BarStackGap);
+    }
 }

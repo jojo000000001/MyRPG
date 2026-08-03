@@ -52,8 +52,8 @@ public class ThirdPersonCameraRig : MonoBehaviour
 
         if (!target)
         {
-            var player = GameObject.Find("Player");
-            if (player) target = player.transform;
+            var playerObject = GameObject.Find("Player");
+            if (playerObject) target = playerObject.transform;
         }
 
         pitch = initialPitch;
@@ -84,7 +84,7 @@ public class ThirdPersonCameraRig : MonoBehaviour
         {
             yaw = Mathf.LerpAngle(
                 yaw,
-                target.eulerAngles.y,
+                player.CombatCameraYaw,
                 1f - Mathf.Exp(-combatYawFollowSmooth * Time.deltaTime));
         }
         else if (lockYawToTarget || !allowLook)

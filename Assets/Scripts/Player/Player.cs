@@ -82,6 +82,9 @@ public class Player : MonoBehaviour, IDamageable
     [Tooltip("相对敌人朝向的额外偏航（度）。0 表示正面对准敌人。")]
     [SerializeField, Range(-45f, 45f)] private float attackYawOffset = 0f;
     [SerializeField] private bool assistCameraBehindOnAttack = true;
+    [Tooltip("锁定当前攻击辅助目标；新目标必须明显更近才会切换，避免多怪时镜头来回跳。")]
+    [SerializeField] private float attackAssistSwitchMargin = 1.25f;
+    private Monster lockedAttackAssistTarget;
     private int currentHp;
     private int currentEnergy;
     private int currentMental;
@@ -169,6 +172,7 @@ public class Player : MonoBehaviour, IDamageable
     public bool IsAttacking => animator != null && animator.GetBool("IsAttacking");
     public bool AssistCameraBehindOnAttack => assistCameraBehindOnAttack;
     public bool IsCombatCameraAssistActive => assistCameraBehindOnAttack && IsAttacking && HasEnemyInAttackAssistRange();
+    public float CombatCameraYaw => TryGetAttackAssistYaw(out float yaw) ? yaw : transform.eulerAngles.y;
 
     public event Action Died;
 
@@ -898,12 +902,6 @@ public class Player : MonoBehaviour, IDamageable
     }
 
 
-    public bool HasEnemyInAttackAssistRange()
-    {
-        return enableAttackAssist &&
-            Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out _, out _);
-    }
-
     private void ApplyAttackAssistFacing(bool snap = false)
     {
         if (!TryGetAttackAssistYaw(out float targetYaw))
@@ -923,19 +921,79 @@ public class Player : MonoBehaviour, IDamageable
     private void MaintainAttackAssistFacing()
     {
         if (!IsAttacking)
+        {
+            lockedAttackAssistTarget = null;
             return;
+        }
 
         ApplyAttackAssistFacing(snap: false);
+    }
+
+    public bool HasEnemyInAttackAssistRange()
+    {
+        return enableAttackAssist && TryResolveAttackAssistEnemy(out _);
+    }
+
+    private bool TryResolveAttackAssistEnemy(out Monster enemy)
+    {
+        enemy = null;
+        if (!enableAttackAssist)
+        {
+            lockedAttackAssistTarget = null;
+            return false;
+        }
+
+        if (lockedAttackAssistTarget != null)
+        {
+            if (lockedAttackAssistTarget.IsDead || !IsEnemyInAssistRange(lockedAttackAssistTarget))
+                lockedAttackAssistTarget = null;
+        }
+
+        if (lockedAttackAssistTarget != null)
+        {
+            if (Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out Monster nearest, out float nearestDistance)
+                && nearest != lockedAttackAssistTarget)
+            {
+                float lockedDistance = GetHorizontalAssistDistance(lockedAttackAssistTarget);
+                if (nearestDistance + attackAssistSwitchMargin < lockedDistance)
+                    lockedAttackAssistTarget = nearest;
+            }
+
+            enemy = lockedAttackAssistTarget;
+            return true;
+        }
+
+        if (!Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out Monster acquired, out _))
+            return false;
+
+        lockedAttackAssistTarget = acquired;
+        enemy = acquired;
+        return true;
+    }
+
+    private bool IsEnemyInAssistRange(Monster monster)
+    {
+        if (monster == null || monster.IsDead)
+            return false;
+
+        float allowedRadius = attackAssistRadius + monster.GetAttackAssistRangeBonus();
+        Vector3 toPlayer = transform.position - monster.GetAttackAssistFacingPoint();
+        toPlayer.y = 0f;
+        return toPlayer.sqrMagnitude <= allowedRadius * allowedRadius;
+    }
+
+    private float GetHorizontalAssistDistance(Monster monster)
+    {
+        Vector3 toPlayer = transform.position - monster.GetAttackAssistFacingPoint();
+        toPlayer.y = 0f;
+        return toPlayer.magnitude;
     }
 
     private bool TryGetAttackAssistYaw(out float targetYaw)
     {
         targetYaw = 0f;
 
-        if (!enableAttackAssist)
-            return false;
-
-        if (!Monster.TryFindNearestLiving(transform.position, attackAssistRadius, out Monster enemy, out _))
+        if (!TryResolveAttackAssistEnemy(out Monster enemy))
             return false;
 
         Vector3 toEnemy = enemy.GetAttackAssistFacingPoint() - transform.position;
