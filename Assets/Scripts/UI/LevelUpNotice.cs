@@ -23,13 +23,11 @@ public sealed class LevelUpNotice : MonoBehaviour
     private Text detailText;
     private Coroutine showRoutine;
 
-    public static void EnsureForHud(PlayerHealthBar healthBar)
-    {
-        if (healthBar == null)
-            return;
+    private bool prefabUi;
 
-        if (healthBar.GetComponent<LevelUpNotice>() == null)
-            healthBar.gameObject.AddComponent<LevelUpNotice>();
+    private void Awake()
+    {
+        BindPrefabUiIfPresent();
     }
 
     private void OnEnable()
@@ -49,7 +47,9 @@ public sealed class LevelUpNotice : MonoBehaviour
 
     private void Start()
     {
-        EnsureUi();
+        if (!prefabUi)
+            EnsureUi();
+
         HideImmediate();
     }
 
@@ -112,9 +112,23 @@ public sealed class LevelUpNotice : MonoBehaviour
             rootRect.gameObject.SetActive(false);
     }
 
+    private void BindPrefabUiIfPresent()
+    {
+        Transform existing = transform.Find(RootName);
+        if (existing == null)
+            return;
+
+        prefabUi = true;
+        rootRect = existing as RectTransform;
+        canvasGroup = existing.GetComponent<CanvasGroup>();
+        Transform panel = existing.Find("Panel");
+        titleText = panel != null ? panel.Find("Title")?.GetComponent<Text>() : null;
+        detailText = panel != null ? panel.Find("Detail")?.GetComponent<Text>() : null;
+    }
+
     private void EnsureUi()
     {
-        if (rootRect != null)
+        if (prefabUi || rootRect != null)
             return;
 
         GameObject root = new GameObject(RootName, typeof(RectTransform), typeof(CanvasGroup));

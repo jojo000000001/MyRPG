@@ -39,6 +39,9 @@ public class GoblinSpawner : MonoBehaviour
         int count = Mathf.Max(1, spawnCount);
         Transform parent = keepSpawnedAsChild ? transform : null;
         GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        if (pool == null)
+            return spawnedGoblins;
+
         pool.Prewarm(goblinPrefab, count);
 
         for (int i = 0; i < count; i++)

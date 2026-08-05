@@ -4,10 +4,13 @@ using UnityEngine;
 
 /// <summary>
 /// 世界空间伤害飘字：普通黄字，暴击红字。
+/// 由 Resources/Systems/DamageNumberSpawner.prefab 实例化。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class DamageNumberSpawner : MonoBehaviour
 {
+    private const string PrefabResourcePath = "Systems/DamageNumberSpawner";
+
     private static DamageNumberSpawner instance;
 
     [Header("样式")]
@@ -25,28 +28,43 @@ public sealed class DamageNumberSpawner : MonoBehaviour
 
     [Header("对象池")]
     [SerializeField] private int poolSize = 16;
+    [SerializeField] private Transform popupRoot;
 
     private readonly Queue<DamageNumberPopup> pool = new Queue<DamageNumberPopup>();
     private TMP_FontAsset fontAsset;
     private static Material overlayMaterial;
-    private Transform popupRoot;
 
     public static void Show(DamageInfo damage, Vector3 fallbackWorldPosition)
     {
         if (!Application.isPlaying || damage.amount <= 0)
             return;
 
-        GetOrCreate().Spawn(damage, fallbackWorldPosition);
+        DamageNumberSpawner spawner = Instance;
+        if (spawner == null)
+        {
+            Debug.LogWarning("DamageNumberSpawner: missing instance. Run Tools/MyRPG/Setup System Prefabs.");
+            return;
+        }
+
+        spawner.Spawn(damage, fallbackWorldPosition);
     }
 
-    private static DamageNumberSpawner GetOrCreate()
+    public static DamageNumberSpawner Instance => instance;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void EnsureExists()
     {
         if (instance != null)
-            return instance;
+            return;
 
-        var gameObject = new GameObject("DamageNumberSpawner");
-        instance = gameObject.AddComponent<DamageNumberSpawner>();
-        return instance;
+        GameObject prefab = Resources.Load<GameObject>(PrefabResourcePath);
+        if (prefab == null)
+        {
+            Debug.LogError($"DamageNumberSpawner: missing prefab at Resources/{PrefabResourcePath}.prefab. Run Tools/MyRPG/Setup System Prefabs.");
+            return;
+        }
+
+        Instantiate(prefab);
     }
 
     private void Awake()
@@ -59,16 +77,28 @@ public sealed class DamageNumberSpawner : MonoBehaviour
 
         instance = this;
         DontDestroyOnLoad(gameObject);
-        popupRoot = new GameObject("DamageNumberPool").transform;
-        popupRoot.SetParent(transform, false);
+
+        if (!ValidatePopupRoot())
+            return;
+
         EnsureFont();
         WarmPool();
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         if (instance == this)
             instance = null;
+    }
+
+    private bool ValidatePopupRoot()
+    {
+        if (popupRoot != null)
+            return true;
+
+        Debug.LogError("DamageNumberSpawner: assign popupRoot on the prefab.", this);
+        enabled = false;
+        return false;
     }
 
     private void EnsureFont()

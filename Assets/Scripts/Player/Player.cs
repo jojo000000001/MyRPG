@@ -416,7 +416,7 @@ public class Player : MonoBehaviour, IDamageable
         attackHitbox = GetComponentInChildren<AttackHitbox>(true);
         hitFeedback = GetComponent<HitFeedback>();
         if (hitFeedback == null)
-            hitFeedback = gameObject.AddComponent<HitFeedback>();
+            Debug.LogWarning("Player: HitFeedback missing on prefab. Run Tools/MyRPG/Setup Player Gameplay Components.", this);
         currentHp = Mathf.Max(1, maxHp);
         currentEnergy = Mathf.Max(0, maxEnergy);
         currentMental = Mathf.Max(0, maxMental);

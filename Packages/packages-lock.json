@@ -9,6 +9,13 @@
         "com.unity.test-framework": "1.1.31"
       }
     },
+    "com.unity.assetbundlebrowser": {
+      "version": "https://github.com/Unity-Technologies/AssetBundles-Browser.git",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "c7923746fa5e95916bf1a4087eceadb72305d5b5"
+    },
     "com.unity.collab-proxy": {
       "version": "2.12.4",
       "depth": 0,

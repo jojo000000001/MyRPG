@@ -16,6 +16,15 @@ public static class SetupGameplaySpawnAndBgm
     [MenuItem("Tools/MyRPG/Setup Spawn And Village BGM")]
     public static void SetupFromMenu()
     {
+        SetupFromMenuSilent();
+        EditorUtility.DisplayDialog(
+            "Gameplay Setup",
+            "SampleScene updated:\n- GameSpawnPoint synced to Player\n- Village + Forest BGM zones",
+            "OK");
+    }
+
+    internal static void SetupFromMenuSilent()
+    {
         var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
         Player player = Object.FindObjectOfType<Player>();
@@ -25,11 +34,6 @@ public static class SetupGameplaySpawnAndBgm
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-
-        EditorUtility.DisplayDialog(
-            "Gameplay Setup",
-            "SampleScene updated:\n- GameSpawnPoint synced to Player\n- Village + Forest BGM zones",
-            "OK");
     }
 
     private static void SetupSpawnPoint(Player player)

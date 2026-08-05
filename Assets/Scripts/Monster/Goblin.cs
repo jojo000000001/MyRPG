@@ -760,6 +760,9 @@ public class Goblin : Monster, IPoolable
         Vector3 dropPosition = transform.position + dropOffset + new Vector3(scatter.x, 0f, scatter.y);
         Quaternion dropRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
         GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        if (pool == null)
+            return;
+
         pool.Get(dropPrefab, dropPosition, dropRotation);
     }
 

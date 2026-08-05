@@ -49,56 +49,7 @@ public static class SetupHealthBarCatalog
     [MenuItem("Tools/MyRPG/Rebuild Player HUD")]
     public static void RebuildPlayerHudInScene()
     {
-        PlayerHealthBar healthBar = Object.FindObjectOfType<PlayerHealthBar>(true);
-        if (healthBar == null)
-        {
-            EditorUtility.DisplayDialog("Rebuild Player HUD", "场景里找不到 PlayerHUD / PlayerHealthBar。", "OK");
-            return;
-        }
-
-        Undo.RegisterFullObjectHierarchyUndo(healthBar.gameObject, "Rebuild Player HUD");
-
-        Transform hud = healthBar.transform;
-        for (int i = hud.childCount - 1; i >= 0; i--)
-        {
-            Transform child = hud.GetChild(i);
-            if (child.name.StartsWith("PlayerHealthBarRoot") || child.name.StartsWith("PlayerExperienceBarRoot"))
-                Undo.DestroyObjectImmediate(child.gameObject);
-        }
-
-        SerializedObject healthBarObject = new SerializedObject(healthBar);
-        healthBarObject.FindProperty("anchoredPosition").vector2Value = HudBarVisualStyle.HealthAnchoredPosition;
-        healthBarObject.FindProperty("barSize").vector2Value = HudBarVisualStyle.BarSize;
-        healthBarObject.FindProperty("capWidth").floatValue = HudBarVisualStyle.CapWidth;
-        healthBarObject.FindProperty("fillInset").floatValue = HudBarVisualStyle.FillInset;
-        healthBarObject.FindProperty("useTrackPlate").boolValue = false;
-        healthBarObject.FindProperty("showBackTrack").boolValue = false;
-        healthBarObject.FindProperty("hudLayoutVersion").intValue = 2;
-        healthBarObject.ApplyModifiedPropertiesWithoutUndo();
-
-        RectTransform hudRect = hud as RectTransform;
-        if (hudRect != null && hudRect.localScale.sqrMagnitude < 0.0001f)
-            hudRect.localScale = Vector3.one;
-
-        PlayerExperienceBar experienceBar = healthBar.GetComponent<PlayerExperienceBar>();
-        if (experienceBar == null)
-            experienceBar = healthBar.gameObject.AddComponent<PlayerExperienceBar>();
-
-        SerializedObject experienceBarObject = new SerializedObject(experienceBar);
-        experienceBarObject.FindProperty("barSize").vector2Value = HudBarVisualStyle.BarSize;
-        experienceBarObject.FindProperty("capWidth").floatValue = HudBarVisualStyle.CapWidth;
-        experienceBarObject.FindProperty("fillInset").floatValue = HudBarVisualStyle.FillInset;
-        experienceBarObject.FindProperty("useTrackPlate").boolValue = false;
-        experienceBarObject.ApplyModifiedPropertiesWithoutUndo();
-
-        EditorUtility.SetDirty(healthBar);
-        EditorSceneManager.MarkSceneDirty(healthBar.gameObject.scene);
-        EditorSceneManager.SaveOpenScenes();
-
-        EditorUtility.DisplayDialog(
-            "Rebuild Player HUD",
-            "已清理旧的手动血条/经验条节点，并写入新的 HUD 布局参数。\n请进入 Play 模式查看最终效果。",
-            "OK");
+        PlayerHudPrefabBuilder.RebuildPrefabAndScene();
     }
 
     [MenuItem("Tools/MyRPG/Setup Health Bar Catalog")]

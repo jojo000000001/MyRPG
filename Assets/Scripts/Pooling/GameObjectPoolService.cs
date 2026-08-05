@@ -3,14 +3,16 @@ using UnityEngine;
 
 /// <summary>
 /// Scene-scoped GameObject pools for enemies and world drops.
+/// 放置在 SampleScene（或 Prefabs/Systems/GameObjectPoolService.prefab）。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class GameObjectPoolService : MonoBehaviour
 {
     public static GameObjectPoolService Instance { get; private set; }
 
+    [SerializeField] private Transform poolRoot;
+
     private readonly Dictionary<int, Pool> pools = new Dictionary<int, Pool>();
-    private Transform poolRoot;
 
     public static GameObjectPoolService EnsureInstance()
     {
@@ -24,8 +26,8 @@ public sealed class GameObjectPoolService : MonoBehaviour
             return existing;
         }
 
-        GameObject host = new GameObject(nameof(GameObjectPoolService));
-        return host.AddComponent<GameObjectPoolService>();
+        Debug.LogError("GameObjectPoolService: missing in scene. Add Prefabs/Systems/GameObjectPoolService to SampleScene (Tools/MyRPG/Setup Gameplay Scene Systems).");
+        return null;
     }
 
     private void Awake()
@@ -37,8 +39,12 @@ public sealed class GameObjectPoolService : MonoBehaviour
         }
 
         Instance = this;
-        poolRoot = new GameObject("PoolRoot").transform;
-        poolRoot.SetParent(transform, false);
+
+        if (poolRoot == null)
+        {
+            Debug.LogError("GameObjectPoolService: assign poolRoot on the prefab.", this);
+            enabled = false;
+        }
     }
 
     private void OnDestroy()
@@ -49,7 +55,7 @@ public sealed class GameObjectPoolService : MonoBehaviour
 
     public void Prewarm(GameObject prefab, int count)
     {
-        if (prefab == null || count <= 0)
+        if (prefab == null || count <= 0 || poolRoot == null)
             return;
 
         Pool pool = GetOrCreatePool(prefab);
@@ -59,10 +65,13 @@ public sealed class GameObjectPoolService : MonoBehaviour
 
     public GameObject Get(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
     {
-        if (prefab == null)
+        if (prefab == null || poolRoot == null)
             return null;
 
         GameObjectPoolService service = EnsureInstance();
+        if (service == null)
+            return null;
+
         Pool pool = service.GetOrCreatePool(prefab);
         GameObject instance = pool.Take() ?? service.CreateInstance(prefab);
         Transform instanceTransform = instance.transform;
@@ -80,7 +89,7 @@ public sealed class GameObjectPoolService : MonoBehaviour
 
     public void Release(GameObject instance)
     {
-        if (instance == null)
+        if (instance == null || poolRoot == null)
             return;
 
         PooledObject pooled = instance.GetComponent<PooledObject>();

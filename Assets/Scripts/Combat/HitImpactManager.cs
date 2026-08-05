@@ -3,16 +3,37 @@ using UnityEngine;
 
 /// <summary>
 /// 命中瞬间的全局反馈：短暂停顿时间并触发相机震动，增强近战打击感。
+/// 由 Resources/Systems/HitImpactManager.prefab 实例化。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class HitImpactManager : MonoBehaviour
 {
+    private const string PrefabResourcePath = "Systems/HitImpactManager";
+
     private static HitImpactManager instance;
 
     private Coroutine hitStopRoutine;
     private float originalTimeScale = 1f;
     private float originalFixedDeltaTime = 0.02f;
     private bool hitStopActive;
+
+    public static HitImpactManager Instance => instance;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void EnsureExists()
+    {
+        if (instance != null)
+            return;
+
+        GameObject prefab = Resources.Load<GameObject>(PrefabResourcePath);
+        if (prefab == null)
+        {
+            Debug.LogError($"HitImpactManager: missing prefab at Resources/{PrefabResourcePath}.prefab. Run Tools/MyRPG/Setup System Prefabs.");
+            return;
+        }
+
+        Instantiate(prefab);
+    }
 
     private void Awake()
     {
@@ -27,7 +48,7 @@ public sealed class HitImpactManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         RestoreTimeScale();
 
@@ -45,18 +66,14 @@ public sealed class HitImpactManager : MonoBehaviour
         if (!needsHitStop && !needsShake)
             return;
 
-        HitImpactManager manager = GetOrCreate();
+        HitImpactManager manager = instance;
+        if (manager == null)
+        {
+            Debug.LogWarning("HitImpactManager: missing instance. Run Tools/MyRPG/Setup System Prefabs.");
+            return;
+        }
+
         manager.Play(hitStopSeconds, hitStopTimeScale, shakeSeconds, shakeStrength, shakeFrequency);
-    }
-
-    private static HitImpactManager GetOrCreate()
-    {
-        if (instance != null)
-            return instance;
-
-        var gameObject = new GameObject("HitImpactManager");
-        instance = gameObject.AddComponent<HitImpactManager>();
-        return instance;
     }
 
     private void Play(float hitStopSeconds, float hitStopTimeScale, float shakeSeconds, float shakeStrength, float shakeFrequency)

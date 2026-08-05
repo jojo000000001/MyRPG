@@ -46,20 +46,7 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     private TextMeshProUGUI expText;
     private float displayedProgress01;
     private bool spritesReady;
-
-    public static void EnsureForHud(PlayerHealthBar healthBar)
-    {
-        if (healthBar == null)
-            return;
-
-        PlayerExperienceBar experienceBar = healthBar.GetComponent<PlayerExperienceBar>();
-        if (experienceBar == null)
-            experienceBar = healthBar.gameObject.AddComponent<PlayerExperienceBar>();
-
-        experienceBar.AdoptCatalog(healthBar.SpriteCatalog);
-        experienceBar.SyncLayoutFromHealthBar(healthBar);
-        experienceBar.RebuildUi();
-    }
+    private bool prefabUi;
 
     internal void RebuildUi()
     {
@@ -118,6 +105,7 @@ public sealed class PlayerExperienceBar : MonoBehaviour
 
     private void Awake()
     {
+        prefabUi = transform.Find(RootName) != null;
         ResolveCatalogReference();
         HealthBarSprites.BindCatalog(spriteCatalog);
     }
@@ -130,10 +118,14 @@ public sealed class PlayerExperienceBar : MonoBehaviour
 
         PlayerHealthBar healthBar = GetComponent<PlayerHealthBar>();
         if (healthBar != null)
-            SyncLayoutFromHealthBar(healthBar);
+        {
+            AdoptCatalog(healthBar.SpriteCatalog);
+            if (!prefabUi)
+                SyncLayoutFromHealthBar(healthBar);
+        }
 
         expHudLayoutVersion = ExpHudLayoutVersion;
-        if (transform.Find(RootName) != null && NeedsLayoutRebuild())
+        if (!prefabUi && transform.Find(RootName) != null && NeedsLayoutRebuild())
             RebuildUi();
         else
             EnsureUi();
@@ -197,6 +189,21 @@ public sealed class PlayerExperienceBar : MonoBehaviour
 
     private void EnsureUi()
     {
+        if (prefabUi)
+        {
+            rootRect = transform.Find(RootName) as RectTransform;
+            CacheParts();
+            if (!HasExpectedParts())
+            {
+                Debug.LogError("PlayerExperienceBar: prefab UI is missing PlayerExperienceBarRoot hierarchy.", this);
+                return;
+            }
+
+            ApplyLayout();
+            RefreshBarSprites();
+            return;
+        }
+
         Transform existing = transform.Find(RootName);
         if (existing != null)
         {

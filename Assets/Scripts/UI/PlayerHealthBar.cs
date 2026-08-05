@@ -55,9 +55,11 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private bool usingGreenFill;
     private bool uiBuilt;
     private bool spritesReady;
+    private bool prefabUi;
 
     private void Awake()
     {
+        prefabUi = transform.Find(RootName) != null;
         ResolveCatalogReference();
         HealthBarSprites.BindCatalog(spriteCatalog);
     }
@@ -67,15 +69,17 @@ public sealed class PlayerHealthBar : MonoBehaviour
         ResolvePlayer();
         ResolveCatalogReference();
         HealthBarSprites.BindCatalog(spriteCatalog);
-        ApplyHudVisualDefaults();
-        ClearLegacyRoots();
-        uiBuilt = false;
+
+        if (!prefabUi)
+        {
+            ApplyHudVisualDefaults();
+            ClearLegacyRoots();
+            uiBuilt = false;
+        }
+
         EnsureUi();
         UpdateImmediate();
         ApplySprites();
-        PlayerExperienceBar.EnsureForHud(this);
-        LevelUpNotice.EnsureForHud(this);
-        GameplayPauseMenu.EnsureForHud(transform);
 
         if (player != null)
             player.StatsChanged += HandleStatsChanged;
@@ -167,6 +171,25 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void EnsureUi()
     {
+        if (prefabUi)
+        {
+            EnsureCanvasReady();
+            if (rootRect == null)
+                rootRect = transform.Find(RootName) as RectTransform;
+
+            if (rootRect == null || !HasExpectedBarParts())
+            {
+                Debug.LogError("PlayerHealthBar: prefab UI is missing PlayerHealthBarRoot hierarchy.", this);
+                return;
+            }
+
+            CacheBarParts();
+            ApplyLayout();
+            ApplySprites();
+            uiBuilt = true;
+            return;
+        }
+
         if (uiBuilt && rootRect != null && HasExpectedBarParts())
             return;
 

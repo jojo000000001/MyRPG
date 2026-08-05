@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 跨场景 BGM 播放与淡入淡出切换。
+/// 由 Resources/Systems/BgmManager.prefab 实例化，AudioSource 在 Prefab 上配置。
 /// </summary>
 [DefaultExecutionOrder(-500)]
 [DisallowMultipleComponent]
@@ -20,6 +21,7 @@ public sealed class BgmManager : MonoBehaviour
         Battle2
     }
 
+    private const string PrefabResourcePath = "Systems/BgmManager";
     private const string ClipSetResourcePath = "BgmClipSet";
     private const string MainMenuSceneName = "MainMenuScene";
     private const string GameplaySceneName = "SampleScene";
@@ -28,11 +30,12 @@ public sealed class BgmManager : MonoBehaviour
 
     [SerializeField] private float crossfadeSeconds = 0.75f;
     [SerializeField, Range(0f, 1f)] private float volume = 0.65f;
+    [SerializeField] private BgmClipSet clipSet;
+    [SerializeField] private AudioSource activeSource;
+    [SerializeField] private AudioSource fadeSource;
 
-    private AudioSource activeSource;
-    private AudioSource fadeSource;
-    private BgmClipSet clipSet;
     private Coroutine fadeRoutine;
+    private Coroutine preloadRoutine;
     private BgmTrack currentTrack = BgmTrack.None;
 
     private static readonly HashSet<int> GoblinsInCombat = new HashSet<int>();
@@ -46,8 +49,14 @@ public sealed class BgmManager : MonoBehaviour
         if (Instance != null)
             return;
 
-        var host = new GameObject(nameof(BgmManager));
-        host.AddComponent<BgmManager>();
+        GameObject prefab = Resources.Load<GameObject>(PrefabResourcePath);
+        if (prefab == null)
+        {
+            Debug.LogError($"BgmManager: missing prefab at Resources/{PrefabResourcePath}.prefab. Run Tools/MyRPG/Setup BGM Manager Prefab.");
+            return;
+        }
+
+        Instantiate(prefab);
     }
 
     private void Awake()
@@ -61,10 +70,11 @@ public sealed class BgmManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        activeSource = CreateSource("BgmActive");
-        fadeSource = CreateSource("BgmFade");
+        if (!ValidateSources())
+            return;
 
         LoadClipSet();
+        preloadRoutine = StartCoroutine(PreloadAllClips());
         EnsureAudioListener();
 
         SceneManager.sceneLoaded += OnSceneLoaded;
@@ -83,9 +93,21 @@ public sealed class BgmManager : MonoBehaviour
             Instance = null;
     }
 
+    private bool ValidateSources()
+    {
+        if (activeSource != null && fadeSource != null)
+            return true;
+
+        Debug.LogError("BgmManager: assign activeSource and fadeSource on the prefab.", this);
+        enabled = false;
+        return false;
+    }
+
     private void LoadClipSet()
     {
-        clipSet = Resources.Load<BgmClipSet>(ClipSetResourcePath);
+        if (clipSet == null)
+            clipSet = Resources.Load<BgmClipSet>(ClipSetResourcePath);
+
         if (clipSet == null)
             clipSet = ScriptableObject.CreateInstance<BgmClipSet>();
 
@@ -114,19 +136,6 @@ public sealed class BgmManager : MonoBehaviour
             return;
 
         gameObject.AddComponent<AudioListener>();
-    }
-
-    private static AudioSource CreateSource(string sourceName)
-    {
-        var sourceObject = new GameObject(sourceName);
-        sourceObject.transform.SetParent(Instance.transform, false);
-
-        AudioSource source = sourceObject.AddComponent<AudioSource>();
-        source.loop = true;
-        source.playOnAwake = false;
-        source.spatialBlend = 0f;
-        source.priority = 0;
-        return source;
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -343,8 +352,35 @@ public sealed class BgmManager : MonoBehaviour
         return volume * GameSettings.MasterVolume;
     }
 
+    private IEnumerator PreloadAllClips()
+    {
+        yield return PreloadClip(clipSet?.title);
+        yield return PreloadClip(clipSet?.town);
+        yield return PreloadClip(clipSet?.forest);
+        yield return PreloadClip(clipSet?.battle1);
+        yield return PreloadClip(clipSet?.battle2);
+        preloadRoutine = null;
+    }
+
+    private static IEnumerator PreloadClip(AudioClip clip)
+    {
+        if (clip == null)
+            yield break;
+
+        if (clip.loadState == AudioDataLoadState.Loaded)
+            yield break;
+
+        if (clip.loadState == AudioDataLoadState.Unloaded)
+            clip.LoadAudioData();
+
+        while (clip.loadState == AudioDataLoadState.Loading)
+            yield return null;
+    }
+
     private IEnumerator CrossfadeTo(AudioClip nextClip)
     {
+        yield return PreloadClip(nextClip);
+
         float duration = Mathf.Max(0.01f, crossfadeSeconds);
         float elapsed = 0f;
         float targetVolume = GetEffectiveVolume();
