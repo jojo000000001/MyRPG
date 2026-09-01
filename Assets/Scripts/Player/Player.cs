@@ -166,6 +166,7 @@ public class Player : MonoBehaviour, IDamageable
     public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus + GetActiveAttackBuff());
     public ItemSO EquippedWeapon => equippedWeapon;
     public bool IsDead => currentHp <= 0;
+    public bool ConversationLocked { get; private set; }
     public float Health01 => maxHp <= 0 ? 0f : Mathf.Clamp01((float)currentHp / maxHp);
     public float Energy01 => maxEnergy <= 0 ? 0f : Mathf.Clamp01((float)currentEnergy / maxEnergy);
     public float Mental01 => maxMental <= 0 ? 0f : Mathf.Clamp01((float)currentMental / maxMental);
@@ -442,12 +443,34 @@ public class Player : MonoBehaviour, IDamageable
         }
     }
 
+    public void SetConversationLocked(bool locked)
+    {
+        if (ConversationLocked == locked)
+            return;
+
+        ConversationLocked = locked;
+        if (!locked)
+            return;
+
+        pendingComboInput = false;
+        comboCount = 0;
+        CancelQueuedAttackHitbox();
+        StopMovementAnimation();
+        smoothedMove = Vector3.zero;
+    }
+
     // 输入、移动、跳跃和攻击都在 Update 中集中推进，方便与动画参数同步。
     private void Update()
     {
         if (IsDead)
         {
             StopMovementAnimation();
+            return;
+        }
+
+        if (ConversationLocked)
+        {
+            UpdateConversationLock();
             return;
         }
 
@@ -843,6 +866,27 @@ public class Player : MonoBehaviour, IDamageable
         smoothedMove = Vector3.zero;
         StopMovementAnimation();
         Died?.Invoke();
+    }
+
+    private void UpdateConversationLock()
+    {
+        StopMovementAnimation();
+
+        bool isGrounded = characterController.isGrounded;
+        if (isGrounded)
+        {
+            lastGroundedAt = Time.time;
+            if (velocity.y < 0f)
+                velocity.y = -1f;
+        }
+        else
+        {
+            float gravityMultiplier = velocity.y < 0f ? Mathf.Max(1f, fallGravityMultiplier) : 1f;
+            velocity.y += gravity * gravityMultiplier * Time.deltaTime;
+        }
+
+        characterController.Move(velocity * Time.deltaTime);
+        UpdateConsumableBuffs();
     }
 
     private void StopMovementAnimation()

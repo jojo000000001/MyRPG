@@ -122,6 +122,22 @@ public class Goblin : Monster, IPoolable
         ResetForSpawn();
     }
 
+    /// <summary>
+    /// 立刻以指定目标进入追击，用于任务刷怪等需要强制入侵的场合。
+    /// </summary>
+    public void ForceEngage(Transform engageTarget, float chaseLoseRadius = -1f, float chaseLeashRadius = -1f)
+    {
+        if (engageTarget == null || IsDead)
+            return;
+
+        target = engageTarget;
+        if (chaseLoseRadius > 0f)
+            loseRadius = chaseLoseRadius;
+        if (chaseLeashRadius > 0f)
+            leashRadius = Mathf.Max(loseRadius, chaseLeashRadius);
+        EnterState(State.Chase);
+    }
+
     public void OnReturnedToPool()
     {
         BgmManager.NotifyGoblinDisengaged(GetInstanceID());

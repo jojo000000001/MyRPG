@@ -51,12 +51,19 @@ public abstract class Monster : MonoBehaviour, IDamageable
     public int CurrentHp => hp;
     /// <summary>最大生命值。</summary>
     public int MaxHp => maxHp;
+    /// <summary>是否已死亡。</summary>
+    public bool IsDead => hp <= 0;
+
+    public void SetMaxHp(int value)
+    {
+        maxHp = Mathf.Max(1, value);
+        hp = maxHp;
+    }
+
     /// <summary>物理护甲。</summary>
     public int Armor => armor;
     /// <summary>魔法抗性。</summary>
     public int MagicResistance => magicResistance;
-    /// <summary>是否已死亡。</summary>
-    public bool IsDead => hp <= 0;
 
     public int GetDefense(DamageType damageType)
     {

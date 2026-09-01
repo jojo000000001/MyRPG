@@ -13,7 +13,9 @@ public class GoblinSpawner : MonoBehaviour
     [SerializeField] private float spawnRadius = 2.5f;
 
     private readonly List<GameObject> spawnedGoblins = new List<GameObject>();
+    private bool campSpawned;
 
+    public GameObject GoblinPrefab => goblinPrefab;
     public IReadOnlyList<GameObject> SpawnedGoblins => spawnedGoblins;
 
     private void Start()
@@ -33,7 +35,7 @@ public class GoblinSpawner : MonoBehaviour
             return spawnedGoblins;
         }
 
-        if (spawnedGoblins.Count > 0)
+        if (campSpawned)
             return spawnedGoblins;
 
         int count = Mathf.Max(1, spawnCount);
@@ -43,6 +45,7 @@ public class GoblinSpawner : MonoBehaviour
             return spawnedGoblins;
 
         pool.Prewarm(goblinPrefab, count);
+        campSpawned = true;
 
         for (int i = 0; i < count; i++)
         {
@@ -58,6 +61,36 @@ public class GoblinSpawner : MonoBehaviour
         }
 
         return spawnedGoblins;
+    }
+
+    /// <summary>
+    /// 在指定位置额外生成一只哥布林，不影响开场批次。
+    /// </summary>
+    public GameObject SpawnOne(Vector3 position, Quaternion rotation, bool registerWithDemo = true)
+    {
+        if (goblinPrefab == null)
+        {
+            Debug.LogWarning("GoblinSpawner is missing a goblin prefab.", this);
+            return null;
+        }
+
+        GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        if (pool == null)
+            return null;
+
+        Transform parent = keepSpawnedAsChild ? transform : null;
+        GameObject instance = pool.Get(goblinPrefab, position, rotation, parent);
+        if (instance == null)
+            return null;
+
+        instance.name = $"{goblinPrefab.name}_Invasion";
+        spawnedGoblins.Add(instance);
+
+        Monster monster = instance.GetComponent<Monster>();
+        if (registerWithDemo && monster != null && DemoGameManager.Instance != null)
+            DemoGameManager.Instance.RegisterEnemy(monster);
+
+        return instance;
     }
 
     private Vector3 GetSpawnOffset(int index, int count)

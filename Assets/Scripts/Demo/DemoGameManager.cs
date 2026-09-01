@@ -47,9 +47,6 @@ public sealed class DemoGameManager : MonoBehaviour
 
         if (player != null)
             player.Died += OnPlayerDied;
-
-        flowUI?.ShowIntro(killsToWin);
-        flowUiUpdateProgress();
     }
 
     /// <summary>
@@ -62,7 +59,6 @@ public sealed class DemoGameManager : MonoBehaviour
 
         enemiesTotal++;
         enemy.Died += OnEnemyDied;
-        flowUiUpdateProgress();
     }
 
     private void OnEnemyDied()
@@ -71,7 +67,6 @@ public sealed class DemoGameManager : MonoBehaviour
             return;
 
         enemiesKilled++;
-        flowUiUpdateProgress();
 
         int goal = Mathf.Max(killsToWin, enemiesTotal);
         if (enemiesKilled >= goal)
@@ -104,12 +99,6 @@ public sealed class DemoGameManager : MonoBehaviour
         gameEnded = true;
         Time.timeScale = 0f;
         flowUI?.ShowVictory(Restart);
-    }
-
-    private void flowUiUpdateProgress()
-    {
-        int target = Mathf.Max(killsToWin, enemiesTotal);
-        flowUI?.UpdateProgress(enemiesKilled, target);
     }
 
     public void NotifyBossDefeated()

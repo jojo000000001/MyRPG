@@ -1,23 +1,16 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Demo 目标提示与胜负界面（运行时构建 UI）。
+/// Demo 胜负界面（运行时构建 UI）。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class DemoFlowUI : MonoBehaviour
 {
     private const int OverlaySortingOrder = 500;
 
-    [Header("Intro")]
-    [SerializeField] private float introFadeSeconds = 8f;
-
     private RectTransform rootRect;
-    private Text objectiveText;
-    private Text progressText;
-    private CanvasGroup introGroup;
     private GameObject endScreenRoot;
     private Text endTitleText;
     private Text endBodyText;
@@ -27,36 +20,6 @@ public sealed class DemoFlowUI : MonoBehaviour
     private void Awake()
     {
         EnsureUi();
-    }
-
-    public void ShowIntro(int killsToWin)
-    {
-        EnsureUi();
-
-        if (objectiveText != null)
-        {
-            objectiveText.text =
-                $"目标：击败 {killsToWin} 只哥布林\n" +
-                "左键攻击  |  I 打开背包  |  右键使用物品\n" +
-                "靠近地上武器，拾取后在背包中右键装备";
-        }
-
-        if (introGroup != null)
-        {
-            introGroup.alpha = 1f;
-            StopAllCoroutines();
-            StartCoroutine(FadeIntro());
-        }
-
-        UpdateProgress(0, killsToWin);
-    }
-
-    public void UpdateProgress(int killed, int target)
-    {
-        EnsureUi();
-
-        if (progressText != null)
-            progressText.text = $"哥布林 {killed}/{Mathf.Max(1, target)}";
     }
 
     public void ShowDefeat(Action onRestart)
@@ -75,9 +38,6 @@ public sealed class DemoFlowUI : MonoBehaviour
 
         restartCallback = onRestart;
 
-        if (introGroup != null)
-            introGroup.gameObject.SetActive(false);
-
         if (endScreenRoot != null)
             endScreenRoot.SetActive(true);
 
@@ -95,25 +55,6 @@ public sealed class DemoFlowUI : MonoBehaviour
         }
 
         GameplayCursor.UnlockForUI();
-    }
-
-    private IEnumerator FadeIntro()
-    {
-        yield return new WaitForSeconds(introFadeSeconds);
-
-        if (introGroup == null)
-            yield break;
-
-        float duration = 1.2f;
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            introGroup.alpha = Mathf.Lerp(1f, 0.35f, elapsed / duration);
-            yield return null;
-        }
-
-        introGroup.alpha = 0.35f;
     }
 
     private void EnsureUi()
@@ -141,44 +82,7 @@ public sealed class DemoFlowUI : MonoBehaviour
         rootRect = root.GetComponent<RectTransform>();
         Stretch(rootRect);
 
-        CreateIntroPanel(root.transform);
-        CreateProgressLabel(root.transform);
         CreateEndScreen(root.transform);
-    }
-
-    private void CreateIntroPanel(Transform parent)
-    {
-        GameObject panel = new GameObject("IntroPanel", typeof(RectTransform), typeof(CanvasGroup));
-        panel.transform.SetParent(parent, false);
-        introGroup = panel.GetComponent<CanvasGroup>();
-        introGroup.blocksRaycasts = false;
-
-        RectTransform rect = panel.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -36f);
-        rect.sizeDelta = new Vector2(900f, 140f);
-
-        objectiveText = CreateText(panel, "ObjectiveText", string.Empty, 24, TextAnchor.UpperCenter);
-        Stretch(objectiveText.rectTransform);
-    }
-
-    private void CreateProgressLabel(Transform parent)
-    {
-        GameObject panel = new GameObject("ProgressPanel", typeof(RectTransform));
-        panel.transform.SetParent(parent, false);
-
-        RectTransform rect = panel.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -8f);
-        rect.sizeDelta = new Vector2(320f, 40f);
-
-        progressText = CreateText(panel, "ProgressText", "哥布林 0/3", 28, TextAnchor.MiddleCenter);
-        Stretch(progressText.rectTransform);
-        ChineseUIFont.Apply(progressText, 28, FontStyle.Bold);
     }
 
     private void CreateEndScreen(Transform parent)
