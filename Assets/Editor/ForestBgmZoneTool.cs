@@ -179,7 +179,7 @@ public sealed class AreaBgmZoneEditor : Editor
 
     private static void SnapCenterToPlayer(AreaBgmZone zone)
     {
-        Player player = FindObjectOfType<Player>();
+        Player player = Player.Resolve();
         if (player == null)
         {
             EditorUtility.DisplayDialog("Area BGM Zone", "场景里找不到 Player。", "OK");

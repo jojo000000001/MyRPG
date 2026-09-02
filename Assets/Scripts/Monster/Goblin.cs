@@ -580,19 +580,15 @@ public class Goblin : Monster, IPoolable
         patrolTarget = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
     }
 
-    private static Player cachedPlayer;
-
-    // 如果没有目标，尝试在场景中查找 Player 作为追击目标。
+    // 如果没有目标，尝试把场景单例 Player 作为追击目标。
     private void AcquireTarget()
     {
         if (target != null)
             return;
 
-        if (cachedPlayer == null)
-            cachedPlayer = Object.FindObjectOfType<Player>();
-
-        if (cachedPlayer != null && !cachedPlayer.IsDead)
-            target = cachedPlayer.transform;
+        Player player = Player.Instance;
+        if (player != null && !player.IsDead)
+            target = player.transform;
     }
 
     // 判断当前目标是否存在；如果目标是玩家，还要确认玩家没有死亡。

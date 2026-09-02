@@ -9,11 +9,6 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private const string RootName = "PlayerHealthBarRoot";
     private const string TrackPlateName = "TrackPlate";
     private const string BackName = "Back";
-    private const string FillMaskName = "FillMask";
-    private const string FillName = "Fill";
-    private const string LeftName = "Left";
-    private const string MidName = "Mid";
-    private const string RightName = "Right";
 
     [Header("Target")]
     [SerializeField] private Player player;
@@ -42,17 +37,8 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private CanvasScaler canvasScaler;
     private GraphicRaycaster graphicRaycaster;
     private RectTransform rootRect;
-    private RectTransform fillMaskRect;
-    private RectTransform backMidRect;
-    private RectTransform fillMidRect;
-    private Image backLeftImage;
-    private Image backMidImage;
-    private Image backRightImage;
-    private Image fillLeftImage;
-    private Image fillMidImage;
-    private Image fillRightImage;
+    private KenneyBarView barView;
     private float displayedHealth01 = 1f;
-    private bool usingGreenFill;
     private bool uiBuilt;
     private bool spritesReady;
     private bool prefabUi;
@@ -127,7 +113,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private void ResolvePlayer()
     {
         if (player == null)
-            player = FindObjectOfType<Player>();
+            player = Player.Resolve();
     }
 
     private void ResolveCatalogReference()
@@ -268,7 +254,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         }
 
         rootRect = null;
-        fillMaskRect = null;
+        barView = null;
         uiBuilt = false;
     }
 
@@ -280,24 +266,14 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private bool HasExpectedBarParts()
     {
-        bool fillOk = rootRect.Find(FillMaskName + "/" + FillName + "/" + LeftName) != null &&
-            rootRect.Find(FillMaskName + "/" + FillName + "/" + MidName) != null &&
-            rootRect.Find(FillMaskName + "/" + FillName + "/" + RightName) != null;
-
-        if (!showBackTrack)
-            return fillOk;
-
-        return fillOk &&
-            rootRect.Find(BackName + "/" + LeftName) != null &&
-            rootRect.Find(BackName + "/" + MidName) != null &&
-            rootRect.Find(BackName + "/" + RightName) != null;
+        return KenneyBarView.HasExpectedParts(rootRect, showBackTrack);
     }
 
     private void DestroyExistingRoot()
     {
         GameObject oldRoot = rootRect.gameObject;
         rootRect = null;
-        fillMaskRect = null;
+        barView = null;
         uiBuilt = false;
 
         if (Application.isPlaying)
@@ -325,47 +301,8 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void CreateBar()
     {
-        GameObject root = new GameObject(RootName, typeof(RectTransform));
-        root.transform.SetParent(transform, false);
-        rootRect = root.GetComponent<RectTransform>();
-
-        if (useTrackPlate)
-        {
-            GameObject plate = new GameObject(TrackPlateName, typeof(RectTransform), typeof(Image));
-            plate.transform.SetParent(root.transform, false);
-            plate.transform.SetAsFirstSibling();
-            Image plateImage = plate.GetComponent<Image>();
-            plateImage.raycastTarget = false;
-            plateImage.color = HealthBarSprites.TrackPlateColor;
-        }
-
-        if (showBackTrack)
-        {
-            GameObject back = new GameObject(BackName, typeof(RectTransform));
-            back.transform.SetParent(root.transform, false);
-            CreateSegment(back.transform, LeftName);
-            CreateSegment(back.transform, MidName);
-            CreateSegment(back.transform, RightName);
-        }
-
-        GameObject fillMask = new GameObject(FillMaskName, typeof(RectTransform), typeof(RectMask2D));
-        fillMask.transform.SetParent(root.transform, false);
-        fillMaskRect = fillMask.GetComponent<RectTransform>();
-
-        GameObject fill = new GameObject(FillName, typeof(RectTransform));
-        fill.transform.SetParent(fillMask.transform, false);
-        CreateSegment(fill.transform, LeftName);
-        CreateSegment(fill.transform, MidName);
-        CreateSegment(fill.transform, RightName);
-    }
-
-    private static Image CreateSegment(Transform parent, string name)
-    {
-        GameObject segment = new GameObject(name, typeof(RectTransform), typeof(Image));
-        segment.transform.SetParent(parent, false);
-        Image image = segment.GetComponent<Image>();
-        image.raycastTarget = false;
-        return image;
+        barView = KenneyBarView.Create(transform, RootName, showBackTrack, useTrackPlate);
+        rootRect = barView.Root;
     }
 
     private void CacheBarParts()
@@ -373,30 +310,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         if (rootRect == null)
             return;
 
-        Transform back = rootRect.Find(BackName);
-        Transform fillMask = rootRect.Find(FillMaskName);
-        Transform fill = fillMask != null ? fillMask.Find(FillName) : null;
-
-        fillMaskRect = fillMask as RectTransform;
-
-        backLeftImage = GetSegment(back, LeftName);
-        backMidImage = GetSegment(back, MidName);
-        backRightImage = GetSegment(back, RightName);
-        fillLeftImage = GetSegment(fill, LeftName);
-        fillMidImage = GetSegment(fill, MidName);
-        fillRightImage = GetSegment(fill, RightName);
-
-        backMidRect = backMidImage != null ? backMidImage.rectTransform : null;
-        fillMidRect = fillMidImage != null ? fillMidImage.rectTransform : null;
-    }
-
-    private static Image GetSegment(Transform parent, string name)
-    {
-        if (parent == null)
-            return null;
-
-        Transform child = parent.Find(name);
-        return child != null ? child.GetComponent<Image>() : null;
+        barView = KenneyBarView.Bind(rootRect, showBackTrack);
     }
 
     private void ApplyLayout()
@@ -410,108 +324,12 @@ public sealed class PlayerHealthBar : MonoBehaviour
         rootRect.anchoredPosition = anchoredPosition;
         rootRect.sizeDelta = barSize;
 
-        if (useTrackPlate)
-        {
-            RectTransform plateRect = rootRect.Find(TrackPlateName) as RectTransform;
-            if (plateRect != null)
-                StretchToParent(plateRect);
-        }
-
-        if (showBackTrack)
-            LayoutGroup(rootRect.Find(BackName) as RectTransform, barSize.x);
-
-        if (fillMaskRect != null)
-        {
-            fillMaskRect.anchorMin = new Vector2(0f, 0f);
-            fillMaskRect.anchorMax = new Vector2(0f, 1f);
-            fillMaskRect.pivot = new Vector2(0f, 0.5f);
-            fillMaskRect.anchoredPosition = new Vector2(fillInset, 0f);
-            fillMaskRect.sizeDelta = new Vector2(Mathf.Max(0f, barSize.x - fillInset * 2f), 0f);
-        }
-
-        float innerWidth = Mathf.Max(0f, barSize.x - fillInset * 2f);
-        LayoutGroup(fillMaskRect != null ? fillMaskRect.Find(FillName) as RectTransform : null, innerWidth);
-    }
-
-    private void LayoutGroup(RectTransform groupRect, float width)
-    {
-        if (groupRect == null)
-            return;
-
-        StretchToParent(groupRect);
-        LayoutSegment(groupRect.Find(LeftName) as RectTransform, 0f, 0f, capWidth);
-        LayoutSegment(groupRect.Find(MidName) as RectTransform, capWidth, 0f, Mathf.Max(0f, width - capWidth * 2f));
-        LayoutSegment(groupRect.Find(RightName) as RectTransform, width - capWidth, 0f, capWidth);
-    }
-
-    private void LayoutSegment(RectTransform rect, float x, float y, float width)
-    {
-        if (rect == null)
-            return;
-
-        rect.anchorMin = new Vector2(0f, 0f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 0.5f);
-        rect.anchoredPosition = new Vector2(x, y);
-        rect.sizeDelta = new Vector2(width, 0f);
+        barView?.LayoutContents(barSize, capWidth, fillInset);
     }
 
     private void ApplySprites()
     {
-        ApplyBackSprites();
-        ApplyFillSprites(displayedHealth01 >= 0.5f);
-    }
-
-    private void ApplyBackSprites()
-    {
-        if (!showBackTrack)
-            return;
-
-        HealthBarSprites.ApplyBackBarImage(backLeftImage, HealthBarSprites.GetBack("Left"), false);
-        HealthBarSprites.ApplyBackBarImage(backMidImage, HealthBarSprites.GetBack("Mid"), true);
-        HealthBarSprites.ApplyBackBarImage(backRightImage, HealthBarSprites.GetBack("Right"), false);
-    }
-
-    private void ApplyFillSprites(bool useGreen)
-    {
-        Color fallback = useGreen ? HudBarVisualStyle.GreenFillTint : HudBarVisualStyle.RedFillTint;
-
-        if (useGreen == usingGreenFill && fillLeftImage != null && fillLeftImage.sprite != null)
-            return;
-
-        if (useGreen)
-        {
-            HealthBarSprites.ApplyBarImage(fillLeftImage, HealthBarSprites.GetGreen("Left"), false, fallback);
-            HealthBarSprites.ApplyBarImage(fillMidImage, HealthBarSprites.GetGreen("Mid"), true, fallback);
-            HealthBarSprites.ApplyBarImage(fillRightImage, HealthBarSprites.GetGreen("Right"), false, fallback);
-        }
-        else
-        {
-            HealthBarSprites.ApplyBarImage(fillLeftImage, HealthBarSprites.GetRed("Left"), false, fallback);
-            HealthBarSprites.ApplyBarImage(fillMidImage, HealthBarSprites.GetRed("Mid"), true, fallback);
-            HealthBarSprites.ApplyBarImage(fillRightImage, HealthBarSprites.GetRed("Right"), false, fallback);
-        }
-
-        if (useGreen)
-        {
-            ApplyFillTint(fillLeftImage, HudBarVisualStyle.GreenFillTint);
-            ApplyFillTint(fillMidImage, HudBarVisualStyle.GreenFillTint);
-            ApplyFillTint(fillRightImage, HudBarVisualStyle.GreenFillTint);
-        }
-        else
-        {
-            ApplyFillTint(fillLeftImage, HudBarVisualStyle.RedFillTint);
-            ApplyFillTint(fillMidImage, HudBarVisualStyle.RedFillTint);
-            ApplyFillTint(fillRightImage, HudBarVisualStyle.RedFillTint);
-        }
-
-        usingGreenFill = useGreen;
-    }
-
-    private static void ApplyFillTint(Image image, Color tint)
-    {
-        if (image != null && image.sprite != null)
-            image.color = tint;
+        barView?.ApplySprites(displayedHealth01 >= 0.5f);
     }
 
     private void UpdateImmediate()
@@ -530,21 +348,6 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private void UpdateFill(float health01)
     {
-        if (fillMaskRect == null)
-            return;
-
-        float clampedHealth = Mathf.Clamp01(health01);
-        ApplyFillSprites(clampedHealth >= 0.5f);
-        float innerWidth = Mathf.Max(0f, barSize.x - fillInset * 2f);
-        fillMaskRect.sizeDelta = new Vector2(innerWidth * clampedHealth, 0f);
-    }
-
-    private static void StretchToParent(RectTransform rect)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        barView?.SetFill01(health01, barSize.x, fillInset);
     }
 }

@@ -125,8 +125,8 @@ public sealed class QuestManager : MonoBehaviour
         invadingGoblin.SetMaxHp(InvasionMaxHp);
 
         Goblin goblin = invadingGoblin as Goblin;
-        Transform playerTransform = Player.ActiveInstance != null
-            ? Player.ActiveInstance.transform
+        Transform playerTransform = Player.Instance != null
+            ? Player.Instance.transform
             : null;
         if (goblin != null && playerTransform != null)
             goblin.ForceEngage(playerTransform, InvasionLoseRadius, InvasionLeashRadius);
@@ -173,7 +173,7 @@ public sealed class QuestManager : MonoBehaviour
 
     private static Vector3 ResolvePlayerPosition(Transform fallback)
     {
-        Player player = Player.ActiveInstance;
+        Player player = Player.Instance;
         if (player != null)
             return player.transform.position;
 

@@ -87,7 +87,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
     private void ResolvePlayer()
     {
         if (player == null)
-            player = FindObjectOfType<Player>();
+            player = Player.Resolve();
     }
 
     private void BuildPanel()

@@ -148,10 +148,7 @@ public sealed class AreaBgmZone : MonoBehaviour
 
     private static Player ResolvePlayer()
     {
-        if (Player.ActiveInstance != null)
-            return Player.ActiveInstance;
-
-        return FindObjectOfType<Player>();
+        return Player.Resolve();
     }
 
 #if UNITY_EDITOR

@@ -2869,15 +2869,10 @@ MonoBehaviour:
   worldOffset: {x: 0, y: 2.15, z: 0}
   barSize: {x: 1.25, y: 0.16}
   pixelsPerUnit: 100
-  borderPixels: 3
   sortingOrder: 60
   hideWhenFull: 0
   hideOnDeath: 1
   smoothSpeed: 12
-  frameColor: {r: 0.03, g: 0.02, b: 0.02, a: 0.85}
-  backgroundColor: {r: 0.18, g: 0.04, b: 0.04, a: 0.85}
-  highHealthColor: {r: 0.2, g: 0.85, b: 0.25, a: 0.95}
-  lowHealthColor: {r: 0.95, g: 0.12, b: 0.08, a: 0.95}
 --- !u!114 &3553849166204315422
 MonoBehaviour:
   m_ObjectHideFlags: 0

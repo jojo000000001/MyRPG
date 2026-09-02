@@ -139,7 +139,7 @@ public static class InventoryUIPrefabBuilder
         if (spawner == null)
             spawner = hud.AddComponent<InventoryUIRuntimeSpawner>();
 
-        Player player = Object.FindObjectOfType<Player>();
+        Player player = Player.Resolve();
         Inventory inventory = player != null ? player.GetComponent<Inventory>() : null;
 
         SerializedObject serializedSpawner = new SerializedObject(spawner);

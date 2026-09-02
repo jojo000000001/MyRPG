@@ -227,7 +227,7 @@ public sealed class GameplayPauseMenu : MonoBehaviour
     private void ResolveReferences()
     {
         if (player == null)
-            player = FindObjectOfType<Player>();
+            player = Player.Resolve();
 
         if (inventory == null && player != null)
             inventory = player.GetComponent<Inventory>();

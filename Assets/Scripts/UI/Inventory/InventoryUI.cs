@@ -845,7 +845,7 @@ public sealed class InventoryUI : MonoBehaviour
     private void ResolveTargets()
     {
         if (player == null)
-            player = Object.FindObjectOfType<Player>();
+            player = Player.Resolve();
 
         if (inventory == null && player != null)
             inventory = player.GetComponent<Inventory>();

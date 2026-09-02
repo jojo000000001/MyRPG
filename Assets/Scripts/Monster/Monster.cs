@@ -253,9 +253,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
         if (!grantsExperienceOnDeath || xpRewardOnDeath <= 0)
             return;
 
-        Player player = Player.ActiveInstance;
-        if (player == null)
-            player = FindObjectOfType<Player>();
+        Player player = Player.Resolve();
 
         player?.TryGainExperience(xpRewardOnDeath);
     }

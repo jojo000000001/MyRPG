@@ -252,7 +252,7 @@ public static class PlayerHudPrefabBuilder
         if (prefab == null)
             return;
 
-        Player existingHud = Object.FindObjectOfType<Player>();
+        Player existingHud = Player.Resolve();
 
         Inventory inventory = existingHud != null ? existingHud.GetComponent<Inventory>() : null;
 

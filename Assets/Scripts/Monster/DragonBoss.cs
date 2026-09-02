@@ -78,7 +78,6 @@ public sealed class DragonBoss : Monster
     private bool attackDamageApplied;
     private int nextAttackIndex;
     private bool registeredWithDemo;
-    private static Player cachedPlayer;
 
     protected override void Awake()
     {
@@ -539,11 +538,9 @@ public sealed class DragonBoss : Monster
         if (target != null)
             return;
 
-        if (cachedPlayer == null)
-            cachedPlayer = Object.FindObjectOfType<Player>();
-
-        if (cachedPlayer != null && !cachedPlayer.IsDead)
-            target = cachedPlayer.transform;
+        Player player = Player.Instance;
+        if (player != null && !player.IsDead)
+            target = player.transform;
     }
 
     private bool HasValidTarget()

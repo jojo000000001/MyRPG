@@ -10,9 +10,7 @@ static class SaveGameRuntimeInstaller
         if (Object.FindObjectOfType<SaveGameController>() != null)
             return;
 
-        Player player = Player.ActiveInstance != null
-            ? Player.ActiveInstance
-            : Object.FindObjectOfType<Player>();
+        Player player = Player.Resolve();
         if (player == null)
             return;
 

@@ -156,9 +156,7 @@ public sealed class DialogueUI : MonoBehaviour
 
     private void LockPlayer(bool locked)
     {
-        Player player = Player.ActiveInstance;
-        if (player == null)
-            player = FindObjectOfType<Player>();
+        Player player = Player.Resolve();
 
         if (locked)
         {

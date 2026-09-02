@@ -4,10 +4,31 @@ using UnityEngine;
 
 /// <summary>
 /// 玩家控制器：处理移动、镜头相对转向、跳跃手感、三段连击以及基础战斗属性。
+/// 场景内应只有一个实例；用 Player.Instance / Player.Resolve() 获取，不要 FindObjectOfType。
 /// </summary>
+[DisallowMultipleComponent]
 public class Player : MonoBehaviour, IDamageable
 {
-    public static Player ActiveInstance { get; private set; }
+    private static Player instance;
+
+    /// <summary>
+    /// 当前场景玩家，在 Awake 里赋值。登录场景或玩家尚未创建时为 null。
+    /// </summary>
+    public static Player Instance => instance;
+
+    /// <summary>
+    /// 返回场景玩家。Awake 尚未执行时（脚本顺序 / 编辑器）会做一次场景查找。
+    /// </summary>
+    public static Player Resolve()
+    {
+        if (instance != null)
+            return instance;
+
+        Player found = FindObjectOfType<Player>();
+        if (found != null && Application.isPlaying)
+            instance = found;
+        return found;
+    }
 
     private Animator animator;
     private CharacterController characterController;
@@ -411,7 +432,14 @@ public class Player : MonoBehaviour, IDamageable
 
     private void Awake()
     {
-        ActiveInstance = this;
+        if (instance != null && instance != this)
+        {
+            Debug.LogError($"Player: duplicate '{name}' destroyed. Keep a single Player in the gameplay scene.", this);
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
         attackHitbox = GetComponentInChildren<AttackHitbox>(true);
@@ -425,8 +453,8 @@ public class Player : MonoBehaviour, IDamageable
 
     private void OnDestroy()
     {
-        if (ActiveInstance == this)
-            ActiveInstance = null;
+        if (instance == this)
+            instance = null;
     }
 
     private void Start()

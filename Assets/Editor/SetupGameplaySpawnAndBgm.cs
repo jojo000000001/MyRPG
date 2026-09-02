@@ -27,7 +27,7 @@ public static class SetupGameplaySpawnAndBgm
     {
         var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
-        Player player = Object.FindObjectOfType<Player>();
+        Player player = Player.Resolve();
         SetupSpawnPoint(player);
         SetupAreaZone(AreaBgmZone.AreaKind.Village, "VillageBgmZone", DefaultVillageCenter, DefaultVillageRadius, Vector2.zero);
         SetupAreaZone(AreaBgmZone.AreaKind.Forest, "ForestBgmZone", DefaultForestCenter, 0f, DefaultForestHalfExtents);

@@ -73,9 +73,7 @@ public sealed class SaveGameController : MonoBehaviour
     {
         if (player == null)
         {
-            player = Player.ActiveInstance != null
-                ? Player.ActiveInstance
-                : FindObjectOfType<Player>();
+            player = Player.Resolve();
         }
 
         if (inventory == null && player != null)

@@ -40,7 +40,7 @@ public sealed class DemoGameManager : MonoBehaviour
     private void Start()
     {
         if (player == null)
-            player = Object.FindObjectOfType<Player>();
+            player = Player.Resolve();
 
         if (flowUI == null)
             flowUI = GetComponent<DemoFlowUI>();

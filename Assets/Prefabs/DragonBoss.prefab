@@ -477,18 +477,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4dc889874f8a58a48910025f644716b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  worldOffset: {x: 0, y: 2.2, z: 0}
+  worldOffset: {x: 0, y: 4.2, z: 0}
   barSize: {x: 2.8, y: 0.24}
   pixelsPerUnit: 100
-  borderPixels: 4
   sortingOrder: 80
   hideWhenFull: 1
   hideOnDeath: 1
   smoothSpeed: 10
-  frameColor: {r: 0.05, g: 0.03, b: 0.02, a: 0.92}
-  backgroundColor: {r: 0.22, g: 0.05, b: 0.04, a: 0.9}
-  highHealthColor: {r: 0.92, g: 0.18, b: 0.12, a: 0.98}
-  lowHealthColor: {r: 0.98, g: 0.08, b: 0.05, a: 0.98}
 --- !u!1 &1054901751257040279
 GameObject:
   m_ObjectHideFlags: 0

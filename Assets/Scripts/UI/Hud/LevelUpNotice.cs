@@ -33,7 +33,7 @@ public sealed class LevelUpNotice : MonoBehaviour
     private void OnEnable()
     {
         if (player == null)
-            player = FindObjectOfType<Player>();
+            player = Player.Resolve();
 
         if (player != null)
             player.LeveledUp += HandleLeveledUp;

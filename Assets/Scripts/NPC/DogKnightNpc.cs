@@ -229,9 +229,7 @@ public sealed class DogKnightNpc : MonoBehaviour
         if (target != null)
             return;
 
-        Player player = Player.ActiveInstance;
-        if (player == null)
-            player = FindObjectOfType<Player>();
+        Player player = Player.Resolve();
 
         if (player != null && !player.IsDead)
             target = player.transform;

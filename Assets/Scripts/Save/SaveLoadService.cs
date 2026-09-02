@@ -105,10 +105,7 @@ public static class SaveLoadService
 
     private static Player ResolvePlayer()
     {
-        if (Player.ActiveInstance != null)
-            return Player.ActiveInstance;
-
-        return Object.FindObjectOfType<Player>();
+        return Player.Resolve();
     }
 
     private sealed class SceneLoadRunner : MonoBehaviour
