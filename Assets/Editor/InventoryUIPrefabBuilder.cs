@@ -8,8 +8,8 @@ using UnityEngine.UI;
 public static class InventoryUIPrefabBuilder
 {
     private const string PrefabPath = "Assets/Prefabs/UI/InventoryUIRoot.prefab";
-    private const string PanelSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_panel_brown.png";
-    private const string SlotSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_slot_beige_light.png";
+    private const string PanelSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_panel_fantasy.png";
+    private const string SlotSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_slot_leather.png";
     private const string ButtonSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_button_brown.png";
     private const string CloseIconSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_close_cross_brown.png";
 
