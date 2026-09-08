@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,8 +12,6 @@ using UnityEditor;
 [DisallowMultipleComponent]
 public sealed class MainMenuUI : MonoBehaviour
 {
-    private static readonly Color MutedButtonTextColor = new Color(0.55f, 0.5f, 0.45f, 0.85f);
-
     [Header("Flow")]
     [SerializeField] private string gameSceneName = "SampleScene";
 
@@ -22,6 +21,10 @@ public sealed class MainMenuUI : MonoBehaviour
     [SerializeField] private Button settingsButton;
     [SerializeField] private Button quitButton;
 
+    [Header("Sheikah Style")]
+    [SerializeField] private Sprite panelSprite;
+    [SerializeField] private Sprite slotSprite;
+
     private MainMenuSettingsPanel settingsPanel;
     private MainMenuSaveSlotPanel saveSlotPanel;
     private bool isNavigating;
@@ -30,6 +33,7 @@ public sealed class MainMenuUI : MonoBehaviour
     {
         GameplayCursor.UnlockForUI();
         GameSettings.Apply();
+        SheikahUiStyle.Register(panelSprite, slotSprite);
         EnsureMainMenuLayout();
     }
 
@@ -48,7 +52,13 @@ public sealed class MainMenuUI : MonoBehaviour
 
         RectTransform cardRect = menuCard as RectTransform;
         if (cardRect != null)
-            cardRect.sizeDelta = new Vector2(cardRect.sizeDelta.x, 480f);
+            cardRect.sizeDelta = new Vector2(520f, 560f);
+
+        Image cardImage = menuCard.GetComponent<Image>();
+        if (cardImage != null)
+            cardImage.enabled = false;
+
+        EnsureSheikahChrome(menuCard);
 
         if (continueGameButton == null)
         {
@@ -63,10 +73,7 @@ public sealed class MainMenuUI : MonoBehaviour
             continueObject.name = "ContinueGameButton";
             continueGameButton = continueObject.GetComponent<Button>();
             continueGameButton.onClick.RemoveAllListeners();
-
-            Text continueLabel = continueObject.GetComponentInChildren<Text>(true);
-            if (continueLabel != null)
-                continueLabel.text = "继续游戏";
+            SheikahUiStyle.SetButtonLabel(continueGameButton, "继续游戏");
         }
 
         HideLegacyButton(menuCard, "LoadSaveButton");
@@ -75,6 +82,75 @@ public sealed class MainMenuUI : MonoBehaviour
         PlaceMenuButton(menuCard, "StartGameButton", 0.52f);
         PlaceMenuButton(menuCard, "SettingsButton", 0.36f);
         PlaceMenuButton(menuCard, "QuitButton", 0.20f);
+        StyleMenuButtons(menuCard);
+    }
+
+    private static void EnsureSheikahChrome(Transform menuCard)
+    {
+        Transform background = menuCard.Find("Background");
+        if (background == null)
+        {
+            Image fill = SheikahUiStyle.CreateChild(menuCard, "Background", typeof(Image)).GetComponent<Image>();
+            SheikahUiStyle.Stretch(fill.rectTransform);
+            fill.color = SheikahUiStyle.Fill;
+            fill.raycastTarget = true;
+            fill.transform.SetAsFirstSibling();
+        }
+
+        Transform frame = menuCard.Find("Frame");
+        if (frame == null)
+        {
+            Image frameImage = SheikahUiStyle.CreateChild(menuCard, "Frame", typeof(Image)).GetComponent<Image>();
+            SheikahUiStyle.Stretch(frameImage.rectTransform);
+            SheikahUiStyle.ApplySliced(frameImage, SheikahUiStyle.PanelSprite, Color.white, 2.4f);
+            frameImage.raycastTarget = false;
+            frameImage.transform.SetSiblingIndex(1);
+        }
+
+        Transform title = menuCard.Find("Title");
+        if (title == null)
+            return;
+
+        TextMeshProUGUI tmp = title.GetComponent<TextMeshProUGUI>();
+        if (tmp != null)
+        {
+            tmp.color = SheikahUiStyle.Orange;
+            ChineseUITmpFont.Apply(tmp, tmp.fontSize > 1f ? tmp.fontSize : 40f, FontStyles.Bold);
+            return;
+        }
+
+        Text legacy = title.GetComponent<Text>();
+        if (legacy != null)
+            legacy.color = SheikahUiStyle.Orange;
+    }
+
+    private static void StyleMenuButtons(Transform menuCard)
+    {
+        Sprite slot = SheikahUiStyle.SlotSprite;
+        StyleButton(menuCard.Find("ContinueGameButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
+        StyleButton(menuCard.Find("StartGameButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
+        StyleButton(menuCard.Find("SettingsButton"), slot, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
+        StyleButton(menuCard.Find("QuitButton"), slot, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
+    }
+
+    private static void StyleButton(Transform buttonTransform, Sprite slot, Color tint, Color labelColor)
+    {
+        if (buttonTransform == null)
+            return;
+
+        Image image = buttonTransform.GetComponent<Image>();
+        if (image != null)
+            SheikahUiStyle.ApplySliced(image, slot, tint, 5.5f);
+
+        Button button = buttonTransform.GetComponent<Button>();
+        if (button != null)
+        {
+            button.transition = Selectable.Transition.None;
+            if (image != null)
+                button.targetGraphic = image;
+        }
+
+        SheikahUiStyle.SetButtonLabelColor(button, labelColor);
     }
 
     private static void HideLegacyButton(Transform menuCard, string buttonName)
@@ -100,7 +176,7 @@ public sealed class MainMenuUI : MonoBehaviour
         rect.anchorMax = new Vector2(0.5f, anchorY);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(300f, 52f);
+        rect.sizeDelta = new Vector2(340f, 56f);
     }
 
     private void OnEnable()
@@ -185,11 +261,22 @@ public sealed class MainMenuUI : MonoBehaviour
     {
         bool hasAnySave = SaveSystem.HasAnySave();
 
-        if (continueGameButton != null)
+        if (continueGameButton == null)
+            return;
+
+        continueGameButton.interactable = hasAnySave;
+        Image image = continueGameButton.targetGraphic as Image;
+        if (hasAnySave)
         {
-            continueGameButton.interactable = hasAnySave;
-            if (!hasAnySave)
-                SetButtonLabelColor(continueGameButton, MutedButtonTextColor);
+            if (image != null)
+                image.color = SheikahUiStyle.Orange;
+            SheikahUiStyle.SetButtonLabelColor(continueGameButton, SheikahUiStyle.Text);
+        }
+        else
+        {
+            if (image != null)
+                image.color = SheikahUiStyle.Inactive;
+            SheikahUiStyle.SetButtonLabelColor(continueGameButton, SheikahUiStyle.Muted);
         }
     }
 
@@ -217,15 +304,5 @@ public sealed class MainMenuUI : MonoBehaviour
 
         if (quitButton != null)
             quitButton.interactable = interactable;
-    }
-
-    private static void SetButtonLabelColor(Button button, Color color)
-    {
-        if (button == null)
-            return;
-
-        Text label = button.GetComponentInChildren<Text>(true);
-        if (label != null)
-            label.color = color;
     }
 }

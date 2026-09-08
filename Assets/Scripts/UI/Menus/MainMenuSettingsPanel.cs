@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,15 +8,9 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class MainMenuSettingsPanel : MonoBehaviour
 {
-    private static readonly Color PanelColor = new Color(0.25f, 0.16f, 0.10f, 0.96f);
-    private static readonly Color PrimaryTextColor = new Color(0.18f, 0.1f, 0.045f, 1f);
-    private static readonly Color ButtonColor = new Color(0.55f, 0.38f, 0.22f, 1f);
-    private static readonly Color ButtonTextColor = new Color(0.98f, 0.93f, 0.82f, 1f);
-    private static readonly Color MutedTextColor = new Color(0.35f, 0.24f, 0.14f, 0.85f);
-
     private GameObject root;
     private Slider masterVolumeSlider;
-    private Text volumeValueText;
+    private TextMeshProUGUI volumeValueText;
 
     public System.Action HiddenCallback;
 
@@ -30,7 +25,7 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
 
         GameObject host = new GameObject("MainMenuSettingsPanel", typeof(RectTransform), typeof(MainMenuSettingsPanel));
         host.transform.SetParent(canvasRoot, false);
-        Stretch(host.GetComponent<RectTransform>());
+        SheikahUiStyle.Stretch(host.GetComponent<RectTransform>());
         return host.GetComponent<MainMenuSettingsPanel>();
     }
 
@@ -49,6 +44,8 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
             masterVolumeSlider.SetValueWithoutNotify(GameSettings.MasterVolume);
 
         UpdateVolumeLabel(GameSettings.MasterVolume);
+        SetMainMenuCardVisible(false);
+        root.transform.SetAsLastSibling();
         root.SetActive(true);
     }
 
@@ -57,6 +54,8 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
         if (root != null)
             root.SetActive(false);
 
+        SetMainMenuCardVisible(true);
+
         System.Action callback = HiddenCallback;
         HiddenCallback = null;
         callback?.Invoke();
@@ -64,51 +63,47 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
 
     private void BuildUi()
     {
-        root = CreateChild(transform, "SettingsOverlay", typeof(RectTransform)).gameObject;
-        Stretch(root.GetComponent<RectTransform>());
+        Sprite panelSprite = SheikahUiStyle.PanelSprite;
+        Sprite slotSprite = SheikahUiStyle.SlotSprite;
 
-        Image dim = CreateChild(root.transform, "Dim", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-        Stretch(dim.rectTransform);
-        dim.color = new Color(0f, 0f, 0f, 0.45f);
+        root = SheikahUiStyle.CreateChild(transform, "SettingsOverlay").gameObject;
+        SheikahUiStyle.Stretch(root.GetComponent<RectTransform>());
+
+        Image dim = SheikahUiStyle.CreateChild(root.transform, "Dim", typeof(Image)).GetComponent<Image>();
+        SheikahUiStyle.Stretch(dim.rectTransform);
+        dim.color = SheikahUiStyle.Dim;
         dim.raycastTarget = true;
 
-        GameObject card = CreateChild(root.transform, "SettingsCard", typeof(RectTransform), typeof(Image));
-        RectTransform cardRect = card.GetComponent<RectTransform>();
-        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
-        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(480f, 280f);
-        Image cardImage = card.GetComponent<Image>();
-        cardImage.color = PanelColor;
+        GameObject card = SheikahUiStyle.CreateCard(root.transform, "SettingsCard", new Vector2(520f, 340f), panelSprite, 2.6f);
 
-        Text title = CreateText(card.transform, "Title", "设置", 32, TextAnchor.MiddleCenter, FontStyle.Bold, PrimaryTextColor);
-        PlaceTop(title.rectTransform, -28f, 48f);
+        TextMeshProUGUI title = SheikahUiStyle.CreateText(card.transform, "Title", "设置", 32f, TextAlignmentOptions.Center, FontStyles.Bold, SheikahUiStyle.Orange);
+        PlaceTop(title.rectTransform, -40f, 48f);
 
-        Text volumeLabel = CreateText(card.transform, "VolumeLabel", "主音量", 22, TextAnchor.MiddleLeft, FontStyle.Bold, PrimaryTextColor);
+        TextMeshProUGUI volumeLabel = SheikahUiStyle.CreateText(card.transform, "VolumeLabel", "主音量", 22f, TextAlignmentOptions.MidlineLeft, FontStyles.Bold, SheikahUiStyle.Text);
         PlaceRow(volumeLabel.rectTransform, 0.58f);
 
-        GameObject sliderObject = CreateChild(card.transform, "MasterVolumeSlider", typeof(RectTransform), typeof(Slider));
+        GameObject sliderObject = SheikahUiStyle.CreateChild(card.transform, "MasterVolumeSlider", typeof(Slider));
         RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
-        PlaceRow(sliderRect, 0.46f, new Vector2(-72f, 36f));
+        PlaceRow(sliderRect, 0.44f, new Vector2(-96f, 36f));
 
-        GameObject track = CreateChild(sliderObject.transform, "Background", typeof(RectTransform), typeof(Image));
-        Stretch(track.GetComponent<RectTransform>(), 0f, 6f);
-        track.GetComponent<Image>().color = new Color(0.12f, 0.08f, 0.05f, 0.85f);
+        GameObject track = SheikahUiStyle.CreateChild(sliderObject.transform, "Background", typeof(Image));
+        SheikahUiStyle.Stretch(track.GetComponent<RectTransform>(), 0f, 8f);
+        SheikahUiStyle.ApplySliced(track.GetComponent<Image>(), slotSprite, SheikahUiStyle.Inactive, 6f);
 
-        GameObject fillArea = CreateChild(sliderObject.transform, "Fill Area", typeof(RectTransform));
-        Stretch(fillArea.GetComponent<RectTransform>(), 8f, 10f);
+        GameObject fillArea = SheikahUiStyle.CreateChild(sliderObject.transform, "Fill Area");
+        SheikahUiStyle.Stretch(fillArea.GetComponent<RectTransform>(), 10f, 12f);
 
-        GameObject fill = CreateChild(fillArea.transform, "Fill", typeof(RectTransform), typeof(Image));
-        Stretch(fill.GetComponent<RectTransform>());
-        fill.GetComponent<Image>().color = ButtonColor;
+        GameObject fill = SheikahUiStyle.CreateChild(fillArea.transform, "Fill", typeof(Image));
+        SheikahUiStyle.Stretch(fill.GetComponent<RectTransform>());
+        fill.GetComponent<Image>().color = SheikahUiStyle.Orange;
 
-        GameObject handleSlideArea = CreateChild(sliderObject.transform, "Handle Slide Area", typeof(RectTransform));
-        Stretch(handleSlideArea.GetComponent<RectTransform>(), 8f, 0f);
+        GameObject handleSlideArea = SheikahUiStyle.CreateChild(sliderObject.transform, "Handle Slide Area");
+        SheikahUiStyle.Stretch(handleSlideArea.GetComponent<RectTransform>(), 10f, 0f);
 
-        GameObject handle = CreateChild(handleSlideArea.transform, "Handle", typeof(RectTransform), typeof(Image));
+        GameObject handle = SheikahUiStyle.CreateChild(handleSlideArea.transform, "Handle", typeof(Image));
         RectTransform handleRect = handle.GetComponent<RectTransform>();
-        handleRect.sizeDelta = new Vector2(20f, 28f);
-        handle.GetComponent<Image>().color = new Color(0.92f, 0.84f, 0.68f, 1f);
+        handleRect.sizeDelta = new Vector2(22f, 28f);
+        handle.GetComponent<Image>().color = SheikahUiStyle.Text;
 
         masterVolumeSlider = sliderObject.GetComponent<Slider>();
         masterVolumeSlider.fillRect = fill.GetComponent<RectTransform>();
@@ -121,13 +116,42 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
         masterVolumeSlider.value = GameSettings.MasterVolume;
         masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
 
-        volumeValueText = CreateText(card.transform, "VolumeValue", "100%", 20, TextAnchor.MiddleRight, FontStyle.Normal, MutedTextColor);
-        PlaceRow(volumeValueText.rectTransform, 0.34f);
+        volumeValueText = SheikahUiStyle.CreateText(card.transform, "VolumeValue", "100%", 20f, TextAlignmentOptions.MidlineRight, FontStyles.Normal, SheikahUiStyle.Muted);
+        PlaceRow(volumeValueText.rectTransform, 0.30f);
 
-        Button backButton = CreateButton(card.transform, "BackButton", "返回", 0.14f);
+        Button backButton = SheikahUiStyle.CreateButton(
+            card.transform,
+            "BackButton",
+            "返回",
+            new Vector2(220f, 48f),
+            SheikahUiStyle.Inactive,
+            SheikahUiStyle.Text,
+            slotSprite,
+            5.5f);
+        RectTransform backRect = backButton.GetComponent<RectTransform>();
+        backRect.anchorMin = new Vector2(0.5f, 0.16f);
+        backRect.anchorMax = new Vector2(0.5f, 0.16f);
+        backRect.pivot = new Vector2(0.5f, 0.5f);
+        backRect.anchoredPosition = Vector2.zero;
         backButton.onClick.AddListener(Hide);
 
         root.SetActive(false);
+    }
+
+    private void SetMainMenuCardVisible(bool visible)
+    {
+        Transform menuCard = FindMainMenuCard();
+        if (menuCard != null)
+            menuCard.gameObject.SetActive(visible);
+    }
+
+    private Transform FindMainMenuCard()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null)
+            return null;
+
+        return canvas.transform.Find("UIRoot/MenuCard");
     }
 
     private void OnMasterVolumeChanged(float value)
@@ -142,62 +166,13 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
             volumeValueText.text = Mathf.RoundToInt(value * 100f) + "%";
     }
 
-    private Button CreateButton(Transform parent, string name, string label, float anchorY)
-    {
-        GameObject buttonObject = CreateChild(parent, name, typeof(RectTransform), typeof(Image), typeof(Button));
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = new Vector2(0.5f, anchorY);
-        buttonRect.anchorMax = new Vector2(0.5f, anchorY);
-        buttonRect.pivot = new Vector2(0.5f, 0.5f);
-        buttonRect.sizeDelta = new Vector2(220f, 48f);
-
-        Image image = buttonObject.GetComponent<Image>();
-        image.color = ButtonColor;
-
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = image;
-
-        Text text = CreateText(buttonObject.transform, "Label", label, 22, TextAnchor.MiddleCenter, FontStyle.Bold, ButtonTextColor);
-        Stretch(text.rectTransform);
-
-        return button;
-    }
-
-    private static Text CreateText(Transform parent, string name, string text, int fontSize, TextAnchor alignment, FontStyle style, Color color)
-    {
-        GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(Text));
-        Text label = textObject.GetComponent<Text>();
-        label.text = text;
-        label.alignment = alignment;
-        label.color = color;
-        label.raycastTarget = false;
-        ChineseUIFont.Apply(label, fontSize, style);
-        return label;
-    }
-
-    private static GameObject CreateChild(Transform parent, string name, params System.Type[] components)
-    {
-        GameObject child = new GameObject(name, components);
-        child.transform.SetParent(parent, false);
-        return child;
-    }
-
-    private static void Stretch(RectTransform rect, float horizontalPadding = 0f, float verticalPadding = 0f)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = new Vector2(horizontalPadding, verticalPadding);
-        rect.offsetMax = new Vector2(-horizontalPadding, -verticalPadding);
-        rect.localScale = Vector3.one;
-    }
-
     private static void PlaceTop(RectTransform rect, float y, float height)
     {
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = new Vector2(0f, y);
-        rect.sizeDelta = new Vector2(-48f, height);
+        rect.sizeDelta = new Vector2(-96f, height);
     }
 
     private static void PlaceRow(RectTransform rect, float anchorY, Vector2? sizeDelta = null)
@@ -206,6 +181,6 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
         rect.anchorMax = new Vector2(1f, anchorY);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = sizeDelta ?? new Vector2(-96f, 28f);
+        rect.sizeDelta = sizeDelta ?? new Vector2(-120f, 28f);
     }
 }

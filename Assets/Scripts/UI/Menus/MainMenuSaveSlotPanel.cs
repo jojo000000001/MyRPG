@@ -1,4 +1,5 @@
 using System;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,23 +16,15 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         Start,
     }
 
-    private static readonly Color PanelColor = new Color(0.20f, 0.13f, 0.08f, 1f);
-    private static readonly Color TitleTextColor = new Color(0.98f, 0.93f, 0.82f, 1f);
-    private static readonly Color SummaryTextColor = new Color(0.90f, 0.86f, 0.78f, 1f);
-    private static readonly Color ButtonColor = new Color(0.55f, 0.38f, 0.22f, 1f);
-    private static readonly Color ButtonTextColor = new Color(0.98f, 0.93f, 0.82f, 1f);
-    private static readonly Color EmptySlotColor = new Color(0.72f, 0.66f, 0.58f, 1f);
-    private static readonly Color RowColor = new Color(0.10f, 0.07f, 0.05f, 0.94f);
-    private static readonly Color DangerButtonColor = new Color(0.52f, 0.22f, 0.16f, 1f);
-    private static readonly Color DimColor = new Color(0f, 0f, 0f, 0.78f);
-
     private readonly SlotRowUi[] slotRows = new SlotRowUi[SaveSystem.SlotCount];
 
     private GameObject root;
-    private Text titleText;
+    private TextMeshProUGUI titleText;
     private PanelMode currentMode;
     private string fallbackSceneName = "SampleScene";
     private Action onNavigateStarted;
+
+    public Action HiddenCallback;
 
     public static MainMenuSaveSlotPanel Ensure(Transform canvasRoot)
     {
@@ -44,7 +37,7 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
 
         GameObject host = new GameObject("MainMenuSaveSlotPanel", typeof(RectTransform), typeof(MainMenuSaveSlotPanel));
         host.transform.SetParent(canvasRoot, false);
-        Stretch(host.GetComponent<RectTransform>());
+        SheikahUiStyle.Stretch(host.GetComponent<RectTransform>());
         return host.GetComponent<MainMenuSaveSlotPanel>();
     }
 
@@ -75,6 +68,10 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             root.SetActive(false);
 
         SetMainMenuCardVisible(true);
+
+        Action callback = HiddenCallback;
+        HiddenCallback = null;
+        callback?.Invoke();
     }
 
     private void Show(PanelMode mode, string gameSceneName, Action navigateStarted)
@@ -96,7 +93,6 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             };
         }
 
-        ApplyVisualStyle();
         RefreshRows();
         SetMainMenuCardVisible(false);
         root.transform.SetAsLastSibling();
@@ -105,44 +101,18 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
 
     private void SetMainMenuCardVisible(bool visible)
     {
-        Transform menuCard = transform.Find("UIRoot/MenuCard");
+        Transform menuCard = FindMainMenuCard();
         if (menuCard != null)
             menuCard.gameObject.SetActive(visible);
     }
 
-    private void ApplyVisualStyle()
+    private Transform FindMainMenuCard()
     {
-        if (root == null)
-            return;
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null)
+            return null;
 
-        Image dim = root.transform.Find("Dim")?.GetComponent<Image>();
-        if (dim != null)
-            dim.color = DimColor;
-
-        Transform card = root.transform.Find("SaveSlotCard");
-        if (card != null)
-        {
-            Image cardImage = card.GetComponent<Image>();
-            if (cardImage != null)
-                cardImage.color = PanelColor;
-        }
-
-        if (titleText != null)
-            titleText.color = TitleTextColor;
-
-        for (int i = 0; i < slotRows.Length; i++)
-        {
-            SlotRowUi row = slotRows[i];
-            if (row == null)
-                continue;
-
-            Image rowImage = row.titleText != null ? row.titleText.transform.parent.GetComponent<Image>() : null;
-            if (rowImage != null)
-                rowImage.color = RowColor;
-
-            if (row.titleText != null)
-                row.titleText.color = TitleTextColor;
-        }
+        return canvas.transform.Find("UIRoot/MenuCard");
     }
 
     private void RefreshRows()
@@ -163,12 +133,12 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
                 row.summaryText.text =
                     $"Lv.{summary.level}  ·  {summary.sceneName}\n" +
                     $"HP {summary.currentHp}/{summary.maxHp}  ·  {summary.savedAtDisplay}";
-                row.summaryText.color = SummaryTextColor;
+                row.summaryText.color = SheikahUiStyle.Muted;
             }
             else
             {
                 row.summaryText.text = "空存档";
-                row.summaryText.color = EmptySlotColor;
+                row.summaryText.color = SheikahUiStyle.Muted;
             }
 
             ConfigureRowButtons(row, summary);
@@ -185,8 +155,8 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             if (!summary.hasSave)
                 return;
 
-            SetButtonLabel(row.primaryButton, "读取");
-            SetButtonLabel(row.secondaryButton, "删除");
+            SetRowButton(row.primaryButton, "读取", SheikahUiStyle.Orange, SheikahUiStyle.Text);
+            SetRowButton(row.secondaryButton, "删除", SheikahUiStyle.Danger, SheikahUiStyle.Text);
             row.primaryButton.onClick.RemoveAllListeners();
             row.secondaryButton.onClick.RemoveAllListeners();
             row.primaryButton.onClick.AddListener(() => LoadSlot(summary.slotIndex));
@@ -199,8 +169,8 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             row.primaryButton.gameObject.SetActive(true);
             row.secondaryButton.gameObject.SetActive(summary.hasSave);
 
-            SetButtonLabel(row.primaryButton, summary.hasSave ? "读取" : "开始游戏");
-            SetButtonLabel(row.secondaryButton, "新游戏");
+            SetRowButton(row.primaryButton, summary.hasSave ? "读取" : "开始游戏", SheikahUiStyle.Orange, SheikahUiStyle.Text);
+            SetRowButton(row.secondaryButton, "新游戏", SheikahUiStyle.Inactive, SheikahUiStyle.Text);
             row.primaryButton.onClick.RemoveAllListeners();
             row.secondaryButton.onClick.RemoveAllListeners();
             row.primaryButton.onClick.AddListener(() =>
@@ -219,13 +189,23 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         row.primaryButton.gameObject.SetActive(true);
         row.secondaryButton.gameObject.SetActive(summary.hasSave);
 
-        SetButtonLabel(row.primaryButton, summary.hasSave ? "重新开始" : "开始游戏");
-        SetButtonLabel(row.secondaryButton, "删除");
+        SetRowButton(row.primaryButton, summary.hasSave ? "重新开始" : "开始游戏", SheikahUiStyle.Orange, SheikahUiStyle.Text);
+        SetRowButton(row.secondaryButton, "删除", SheikahUiStyle.Danger, SheikahUiStyle.Text);
         row.primaryButton.onClick.RemoveAllListeners();
         row.secondaryButton.onClick.RemoveAllListeners();
         row.primaryButton.onClick.AddListener(() => StartNewGame(summary.slotIndex));
         if (summary.hasSave)
             row.secondaryButton.onClick.AddListener(() => DeleteSlot(summary.slotIndex));
+    }
+
+    private static void SetRowButton(Button button, string label, Color tint, Color labelColor)
+    {
+        Image image = button != null ? button.targetGraphic as Image : null;
+        if (image != null)
+            SheikahUiStyle.ApplySliced(image, SheikahUiStyle.SlotSprite, tint, 6f);
+
+        SheikahUiStyle.SetButtonLabel(button, label);
+        SheikahUiStyle.SetButtonLabelColor(button, labelColor);
     }
 
     private void LoadSlot(int slotIndex)
@@ -261,65 +241,87 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
 
     private void BuildUi()
     {
-        root = CreateChild(transform, "SaveSlotOverlay", typeof(RectTransform)).gameObject;
-        Stretch(root.GetComponent<RectTransform>());
+        Sprite panelSprite = SheikahUiStyle.PanelSprite;
+        Sprite slotSprite = SheikahUiStyle.SlotSprite;
 
-        Image dim = CreateChild(root.transform, "Dim", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-        Stretch(dim.rectTransform);
-        dim.color = DimColor;
+        root = SheikahUiStyle.CreateChild(transform, "SaveSlotOverlay").gameObject;
+        SheikahUiStyle.Stretch(root.GetComponent<RectTransform>());
+
+        Image dim = SheikahUiStyle.CreateChild(root.transform, "Dim", typeof(Image)).GetComponent<Image>();
+        SheikahUiStyle.Stretch(dim.rectTransform);
+        dim.color = SheikahUiStyle.Dim;
         dim.raycastTarget = true;
 
-        GameObject card = CreateChild(root.transform, "SaveSlotCard", typeof(RectTransform), typeof(Image));
-        RectTransform cardRect = card.GetComponent<RectTransform>();
-        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
-        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(560f, 560f);
-        card.GetComponent<Image>().color = PanelColor;
+        GameObject card = SheikahUiStyle.CreateCard(root.transform, "SaveSlotCard", new Vector2(640f, 640f), panelSprite, 2.2f);
 
-        titleText = CreateText(card.transform, "Title", "读取存档", 34, TextAnchor.MiddleCenter, FontStyle.Bold, TitleTextColor);
-        PlaceTop(titleText.rectTransform, -24f, 48f);
+        titleText = SheikahUiStyle.CreateText(card.transform, "Title", "读取存档", 34f, TextAlignmentOptions.Center, FontStyles.Bold, SheikahUiStyle.Orange);
+        PlaceTop(titleText.rectTransform, -40f, 48f);
 
-        float firstRowY = 0.78f;
-        const float rowStep = 0.22f;
+        float firstRowY = 0.72f;
+        const float rowStep = 0.20f;
         for (int i = 0; i < SaveSystem.SlotCount; i++)
-            slotRows[i] = CreateSlotRow(card.transform, i, firstRowY - rowStep * i);
+            slotRows[i] = CreateSlotRow(card.transform, i, firstRowY - rowStep * i, slotSprite);
 
-        Button backButton = CreateButton(card.transform, "BackButton", "返回", 0.06f, ButtonColor);
+        Button backButton = SheikahUiStyle.CreateButton(
+            card.transform,
+            "BackButton",
+            "返回",
+            new Vector2(220f, 48f),
+            SheikahUiStyle.Inactive,
+            SheikahUiStyle.Text,
+            slotSprite,
+            5.5f);
+        RectTransform backRect = backButton.GetComponent<RectTransform>();
+        backRect.anchorMin = new Vector2(0.5f, 0.08f);
+        backRect.anchorMax = new Vector2(0.5f, 0.08f);
+        backRect.pivot = new Vector2(0.5f, 0.5f);
+        backRect.anchoredPosition = Vector2.zero;
         backButton.onClick.AddListener(Hide);
 
         root.SetActive(false);
     }
 
-    private SlotRowUi CreateSlotRow(Transform parent, int slotIndex, float anchorY)
+    private SlotRowUi CreateSlotRow(Transform parent, int slotIndex, float anchorY, Sprite slotSprite)
     {
-        GameObject rowObject = CreateChild(parent, $"SlotRow_{slotIndex + 1}", typeof(RectTransform), typeof(Image));
+        GameObject rowObject = SheikahUiStyle.CreateChild(parent, $"SlotRow_{slotIndex + 1}", typeof(Image));
         RectTransform rowRect = rowObject.GetComponent<RectTransform>();
         rowRect.anchorMin = new Vector2(0.5f, anchorY);
         rowRect.anchorMax = new Vector2(0.5f, anchorY);
         rowRect.pivot = new Vector2(0.5f, 0.5f);
-        rowRect.sizeDelta = new Vector2(500f, 96f);
-        rowObject.GetComponent<Image>().color = RowColor;
+        rowRect.sizeDelta = new Vector2(540f, 96f);
+        SheikahUiStyle.ApplySliced(rowObject.GetComponent<Image>(), slotSprite, Color.white, 4.6f);
 
-        Text titleTextLocal = CreateText(rowObject.transform, "Title", $"存档 {slotIndex + 1}", 24, TextAnchor.UpperLeft, FontStyle.Bold, TitleTextColor);
+        TextMeshProUGUI titleTextLocal = SheikahUiStyle.CreateText(
+            rowObject.transform,
+            "Title",
+            $"存档 {slotIndex + 1}",
+            22f,
+            TextAlignmentOptions.TopLeft,
+            FontStyles.Bold,
+            SheikahUiStyle.Text);
         RectTransform titleRect = titleTextLocal.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0f, 1f);
-        titleRect.anchoredPosition = new Vector2(18f, -10f);
-        titleRect.sizeDelta = new Vector2(-180f, 24f);
+        titleRect.anchoredPosition = new Vector2(22f, -12f);
+        titleRect.sizeDelta = new Vector2(-200f, 24f);
 
-        Text summaryText = CreateText(rowObject.transform, "Summary", "空存档", 20, TextAnchor.UpperLeft, FontStyle.Normal, EmptySlotColor);
+        TextMeshProUGUI summaryText = SheikahUiStyle.CreateText(
+            rowObject.transform,
+            "Summary",
+            "空存档",
+            18f,
+            TextAlignmentOptions.TopLeft,
+            FontStyles.Normal,
+            SheikahUiStyle.Muted);
         RectTransform summaryRect = summaryText.rectTransform;
         summaryRect.anchorMin = new Vector2(0f, 0f);
         summaryRect.anchorMax = new Vector2(1f, 1f);
-        summaryRect.offsetMin = new Vector2(18f, 12f);
-        summaryRect.offsetMax = new Vector2(-170f, -34f);
-        summaryText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        summaryText.verticalOverflow = VerticalWrapMode.Overflow;
+        summaryRect.offsetMin = new Vector2(22f, 12f);
+        summaryRect.offsetMax = new Vector2(-188f, -36f);
 
-        Button primaryButton = CreateInlineButton(rowObject.transform, "PrimaryButton", "读取", new Vector2(-150f, 0f), ButtonColor);
-        Button secondaryButton = CreateInlineButton(rowObject.transform, "SecondaryButton", "删除", new Vector2(-18f, 0f), DangerButtonColor);
+        Button primaryButton = CreateInlineButton(rowObject.transform, "PrimaryButton", "读取", new Vector2(-150f, 0f), slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
+        Button secondaryButton = CreateInlineButton(rowObject.transform, "SecondaryButton", "删除", new Vector2(-18f, 0f), slotSprite, SheikahUiStyle.Danger, SheikahUiStyle.Text);
 
         return new SlotRowUi
         {
@@ -330,90 +332,23 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         };
     }
 
-    private static Button CreateInlineButton(Transform parent, string name, string label, Vector2 anchoredPosition, Color color)
+    private static Button CreateInlineButton(
+        Transform parent,
+        string name,
+        string label,
+        Vector2 anchoredPosition,
+        Sprite slotSprite,
+        Color tint,
+        Color labelColor)
     {
-        GameObject buttonObject = CreateChild(parent, name, typeof(RectTransform), typeof(Image), typeof(Button));
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        Button button = SheikahUiStyle.CreateButton(parent, name, label, new Vector2(112f, 40f), tint, labelColor, slotSprite, 6f);
+        RectTransform buttonRect = button.GetComponent<RectTransform>();
         buttonRect.anchorMin = new Vector2(1f, 0.5f);
         buttonRect.anchorMax = new Vector2(1f, 0.5f);
         buttonRect.pivot = new Vector2(1f, 0.5f);
         buttonRect.anchoredPosition = anchoredPosition;
         buttonRect.sizeDelta = new Vector2(112f, 40f);
-
-        Image image = buttonObject.GetComponent<Image>();
-        image.color = color;
-
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = image;
-
-        Text text = CreateText(buttonObject.transform, "Label", label, 18, TextAnchor.MiddleCenter, FontStyle.Bold, ButtonTextColor);
-        Stretch(text.rectTransform);
         return button;
-    }
-
-    private static Button CreateButton(Transform parent, string name, string label, float anchorY, Color color)
-    {
-        GameObject buttonObject = CreateChild(parent, name, typeof(RectTransform), typeof(Image), typeof(Button));
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = new Vector2(0.5f, anchorY);
-        buttonRect.anchorMax = new Vector2(0.5f, anchorY);
-        buttonRect.pivot = new Vector2(0.5f, 0.5f);
-        buttonRect.sizeDelta = new Vector2(220f, 48f);
-
-        Image image = buttonObject.GetComponent<Image>();
-        image.color = color;
-
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = image;
-
-        Text text = CreateText(buttonObject.transform, "Label", label, 22, TextAnchor.MiddleCenter, FontStyle.Bold, ButtonTextColor);
-        Stretch(text.rectTransform);
-        return button;
-    }
-
-    private static void SetButtonLabel(Button button, string label)
-    {
-        if (button == null)
-            return;
-
-        Text text = button.GetComponentInChildren<Text>(true);
-        if (text != null)
-            text.text = label;
-    }
-
-    private static Text CreateText(Transform parent, string name, string text, int fontSize, TextAnchor alignment, FontStyle style, Color color)
-    {
-        GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(Text));
-        Text label = textObject.GetComponent<Text>();
-        label.text = text;
-        label.alignment = alignment;
-        label.color = color;
-        label.raycastTarget = false;
-        ChineseUIFont.Apply(label, fontSize, style);
-
-        Shadow shadow = textObject.GetComponent<Shadow>();
-        if (shadow == null)
-            shadow = textObject.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
-        shadow.effectDistance = new Vector2(1.5f, -1.5f);
-
-        return label;
-    }
-
-    private static GameObject CreateChild(Transform parent, string name, params Type[] components)
-    {
-        GameObject child = new GameObject(name, components);
-        child.transform.SetParent(parent, false);
-        return child;
-    }
-
-    private static void Stretch(RectTransform rect, float horizontalPadding = 0f, float verticalPadding = 0f)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = new Vector2(horizontalPadding, verticalPadding);
-        rect.offsetMax = new Vector2(-horizontalPadding, -verticalPadding);
-        rect.localScale = Vector3.one;
     }
 
     private static void PlaceTop(RectTransform rect, float y, float height)
@@ -422,13 +357,13 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = new Vector2(0f, y);
-        rect.sizeDelta = new Vector2(-48f, height);
+        rect.sizeDelta = new Vector2(-96f, height);
     }
 
     private sealed class SlotRowUi
     {
-        public Text titleText;
-        public Text summaryText;
+        public TextMeshProUGUI titleText;
+        public TextMeshProUGUI summaryText;
         public Button primaryButton;
         public Button secondaryButton;
     }

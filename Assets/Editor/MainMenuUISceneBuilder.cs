@@ -1,4 +1,5 @@
 using System.IO;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,13 +12,8 @@ using UnityEngine.UI;
 public static class MainMenuUISceneBuilder
 {
     private const string ScenePath = "Assets/Scenes/MainMenuScene.unity";
-
-    private static readonly Color PrimaryTextColor = new Color(0.18f, 0.1f, 0.045f, 1f);
-    private static readonly Color ButtonTextColor = new Color(0.98f, 0.93f, 0.82f, 1f);
-
-    private const string PanelSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_panel_brown.png";
-    private const string ButtonSpritePath = KenneyUIAssets.ButtonLongBrown;
-    private const string ButtonPressedSpritePath = KenneyUIAssets.ButtonLongBrownPressed;
+    private const string PanelSpritePath = "Assets/Art/UI/GeneratedShop/ui_shop_panel_sheikah.png";
+    private const string SlotSpritePath = "Assets/Art/UI/GeneratedShop/ui_shop_slot_sheikah.png";
 
     [MenuItem("Tools/MyRPG/Rebuild Main Menu Scene UI")]
     public static void RebuildFromMenu()
@@ -34,8 +30,7 @@ public static class MainMenuUISceneBuilder
         ClearExistingMenuUi();
 
         Sprite panelSprite = LoadSprite(PanelSpritePath);
-        Sprite buttonSprite = LoadSprite(ButtonSpritePath);
-        Sprite buttonPressedSprite = LoadSprite(ButtonPressedSpritePath);
+        Sprite slotSprite = LoadSprite(SlotSpritePath);
 
         EnsureEventSystem();
 
@@ -75,7 +70,7 @@ public static class MainMenuUISceneBuilder
         }
         else
         {
-            backdropImage.color = new Color(0.08f, 0.07f, 0.06f, 1f);
+            backdropImage.color = new Color(0.05f, 0.07f, 0.09f, 1f);
         }
 
         backdropImage.raycastTarget = true;
@@ -83,35 +78,36 @@ public static class MainMenuUISceneBuilder
         GameObject dimOverlay = CreateChild(uiRoot, "DimOverlay", typeof(RectTransform), typeof(Image));
         Stretch(dimOverlay.GetComponent<RectTransform>());
         Image dimImage = dimOverlay.GetComponent<Image>();
-        dimImage.color = new Color(0f, 0f, 0f, 0.32f);
+        dimImage.color = new Color(0.02f, 0.05f, 0.08f, 0.38f);
         dimImage.raycastTarget = false;
 
-        GameObject card = CreateChild(uiRoot, "MenuCard", typeof(RectTransform), typeof(Image));
-        RectTransform cardRect = card.GetComponent<RectTransform>();
-        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
-        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(480f, 480f);
-        ConfigureImage(card.GetComponent<Image>(), panelSprite, Image.Type.Sliced, Color.white);
+        GameObject card = SheikahUiStyle.CreateCard(uiRoot.transform, "MenuCard", new Vector2(520f, 560f), panelSprite, 2.4f);
 
-        Text title = CreateText(card, "Title", "MyRPG", 36, TextAnchor.MiddleCenter, FontStyle.Bold, PrimaryTextColor);
+        TextMeshProUGUI title = SheikahUiStyle.CreateText(
+            card.transform,
+            "Title",
+            "MyRPG",
+            40f,
+            TextAlignmentOptions.Center,
+            FontStyles.Bold,
+            SheikahUiStyle.Orange);
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = new Vector2(0f, -32f);
-        titleRect.sizeDelta = new Vector2(-48f, 52f);
+        titleRect.anchoredPosition = new Vector2(0f, -48f);
+        titleRect.sizeDelta = new Vector2(-96f, 52f);
 
-        Button continueGameButton = CreateButton(card.transform, "ContinueGameButton", "继续游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
+        Button continueGameButton = CreateMenuButton(card.transform, "ContinueGameButton", "继续游戏", slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         PlaceMenuButton(continueGameButton.GetComponent<RectTransform>(), 0.68f);
 
-        Button startGameButton = CreateButton(card.transform, "StartGameButton", "开始游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
+        Button startGameButton = CreateMenuButton(card.transform, "StartGameButton", "开始游戏", slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         PlaceMenuButton(startGameButton.GetComponent<RectTransform>(), 0.52f);
 
-        Button settingsButton = CreateButton(card.transform, "SettingsButton", "设置", buttonSprite, buttonPressedSprite, ButtonTextColor);
+        Button settingsButton = CreateMenuButton(card.transform, "SettingsButton", "设置", slotSprite, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
         PlaceMenuButton(settingsButton.GetComponent<RectTransform>(), 0.36f);
 
-        Button quitButton = CreateButton(card.transform, "QuitButton", "退出游戏", buttonSprite, buttonPressedSprite, ButtonTextColor);
+        Button quitButton = CreateMenuButton(card.transform, "QuitButton", "退出游戏", slotSprite, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
         PlaceMenuButton(quitButton.GetComponent<RectTransform>(), 0.20f);
 
         MainMenuUI menuUI = canvasRoot.GetComponent<MainMenuUI>();
@@ -120,6 +116,8 @@ public static class MainMenuUISceneBuilder
         serializedMenu.FindProperty("startGameButton").objectReferenceValue = startGameButton;
         serializedMenu.FindProperty("settingsButton").objectReferenceValue = settingsButton;
         serializedMenu.FindProperty("quitButton").objectReferenceValue = quitButton;
+        serializedMenu.FindProperty("panelSprite").objectReferenceValue = panelSprite;
+        serializedMenu.FindProperty("slotSprite").objectReferenceValue = slotSprite;
         serializedMenu.FindProperty("gameSceneName").stringValue = "SampleScene";
         serializedMenu.ApplyModifiedPropertiesWithoutUndo();
 
@@ -127,6 +125,11 @@ public static class MainMenuUISceneBuilder
         EditorSceneManager.SaveScene(scene, ScenePath);
         EnsureBuildSettings();
         AssetDatabase.SaveAssets();
+    }
+
+    private static Button CreateMenuButton(Transform parent, string name, string label, Sprite slotSprite, Color tint, Color labelColor)
+    {
+        return SheikahUiStyle.CreateButton(parent, name, label, new Vector2(340f, 56f), tint, labelColor, slotSprite, 5.5f);
     }
 
     private static void EnsureBuildSettings()
@@ -181,39 +184,7 @@ public static class MainMenuUISceneBuilder
         rect.anchorMax = new Vector2(0.5f, anchorY);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(300f, 52f);
-    }
-
-    private static Button CreateButton(Transform parent, string name, string label, Sprite normalSprite, Sprite pressedSprite, Color labelColor)
-    {
-        GameObject buttonObject = CreateChild(parent.gameObject, name, typeof(RectTransform), typeof(Image), typeof(Button));
-        Image image = buttonObject.GetComponent<Image>();
-        ConfigureImage(image, normalSprite, Image.Type.Sliced, Color.white);
-
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = image;
-        SpriteState states = button.spriteState;
-        states.pressedSprite = pressedSprite;
-        button.spriteState = states;
-
-        Text text = CreateText(buttonObject, "Label", label, 24, TextAnchor.MiddleCenter, FontStyle.Bold, labelColor);
-        Stretch(text.rectTransform);
-
-        return button;
-    }
-
-    private static Text CreateText(GameObject parent, string name, string text, int fontSize, TextAnchor alignment, FontStyle style, Color color)
-    {
-        GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(Text));
-        Text label = textObject.GetComponent<Text>();
-        label.text = text;
-        label.alignment = alignment;
-        label.color = color;
-        label.raycastTarget = false;
-        label.horizontalOverflow = HorizontalWrapMode.Wrap;
-        label.verticalOverflow = VerticalWrapMode.Overflow;
-        ChineseUIFont.Apply(label, fontSize, style);
-        return label;
+        rect.sizeDelta = new Vector2(340f, 56f);
     }
 
     private static GameObject CreateChild(GameObject parent, string name, params System.Type[] components)
@@ -221,13 +192,6 @@ public static class MainMenuUISceneBuilder
         GameObject child = new GameObject(name, components);
         child.transform.SetParent(parent.transform, false);
         return child;
-    }
-
-    private static void ConfigureImage(Image image, Sprite sprite, Image.Type type, Color color)
-    {
-        image.sprite = sprite;
-        image.type = sprite != null ? type : Image.Type.Simple;
-        image.color = color;
     }
 
     private static Sprite LoadSprite(string path)
