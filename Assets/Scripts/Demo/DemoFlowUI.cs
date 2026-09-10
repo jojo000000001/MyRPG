@@ -1,42 +1,60 @@
 using System;
+using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Demo 胜负界面（运行时构建 UI）。
+/// Demo 胜负界面。预制体提供完整 Overlay，缺引用时才在运行时补建。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class DemoFlowUI : MonoBehaviour
 {
     private const int OverlaySortingOrder = 500;
+    private const string MainMenuSceneName = "MainMenuScene";
+    private const float DefeatCardHeight = 440f;
+    private const float VictoryCardHeight = 560f;
 
-    private RectTransform rootRect;
-    private GameObject endScreenRoot;
-    private Text endTitleText;
-    private Text endBodyText;
-    private Button restartButton;
+    [SerializeField] private RectTransform rootRect;
+    [SerializeField] private RectTransform cardRect;
+    [SerializeField] private GameObject endScreenRoot;
+    [SerializeField] private TextMeshProUGUI endTitleText;
+    [SerializeField] private TextMeshProUGUI endBodyText;
+    [SerializeField] private Button restartButton;
+    [SerializeField] private Button loadSaveButton;
+    [SerializeField] private Button mainMenuButton;
+
     private Action restartCallback;
+    private MainMenuSaveSlotPanel saveSlotPanel;
+    private bool loadingSave;
+    private bool listenersBound;
 
     private void Awake()
     {
         EnsureUi();
+        BindListeners();
+
+        if (endScreenRoot != null)
+            endScreenRoot.SetActive(false);
     }
 
     public void ShowDefeat(Action onRestart)
     {
-        ShowEndScreen("你阵亡了", "哥布林占领了这片空地……", "再试一次", onRestart);
+        ShowEndScreen("你阵亡了", "巨龙将继续入侵这片土地……", "再试一次", onRestart, victory: false);
     }
 
     public void ShowVictory(Action onRestart)
     {
-        ShowEndScreen("胜利！", "所有哥布林已被击退。", "再玩一次", onRestart);
+        ShowEndScreen("胜利！", "巨龙已被击败，这片土地重归平静。", "再玩一次", onRestart, victory: true);
     }
 
-    private void ShowEndScreen(string title, string body, string buttonLabel, Action onRestart)
+    private void ShowEndScreen(string title, string body, string buttonLabel, Action onRestart, bool victory)
     {
         EnsureUi();
+        BindListeners();
 
         restartCallback = onRestart;
+        loadingSave = false;
 
         if (endScreenRoot != null)
             endScreenRoot.SetActive(true);
@@ -47,18 +65,69 @@ public sealed class DemoFlowUI : MonoBehaviour
         if (endBodyText != null)
             endBodyText.text = body;
 
-        if (restartButton != null)
+        SheikahUiStyle.SetButtonLabel(restartButton, buttonLabel);
+
+        ApplyLayout(victory);
+        GameplayCursor.UnlockForUI();
+    }
+
+    private void ApplyLayout(bool victory)
+    {
+        if (cardRect != null)
+            cardRect.sizeDelta = new Vector2(520f, victory ? VictoryCardHeight : DefeatCardHeight);
+
+        if (endBodyText != null)
         {
-            Text buttonText = restartButton.GetComponentInChildren<Text>();
-            if (buttonText != null)
-                buttonText.text = buttonLabel;
+            RectTransform bodyRect = endBodyText.rectTransform;
+            bodyRect.anchorMin = new Vector2(0f, victory ? 0.62f : 0.58f);
+            bodyRect.anchorMax = new Vector2(1f, victory ? 0.62f : 0.58f);
+            bodyRect.pivot = new Vector2(0.5f, 0.5f);
+            bodyRect.anchoredPosition = Vector2.zero;
+            bodyRect.sizeDelta = new Vector2(-80f, 80f);
         }
 
-        GameplayCursor.UnlockForUI();
+        if (restartButton != null)
+        {
+            SheikahUiStyle.PlaceCentered(
+                restartButton.GetComponent<RectTransform>(),
+                victory ? 0.48f : 0.34f,
+                new Vector2(340f, 56f));
+        }
+
+        if (loadSaveButton != null)
+            loadSaveButton.gameObject.SetActive(victory);
+
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.gameObject.SetActive(true);
+            SheikahUiStyle.SetButtonLabel(mainMenuButton, "返回主菜单");
+            SheikahUiStyle.PlaceCentered(
+                mainMenuButton.GetComponent<RectTransform>(),
+                victory ? 0.16f : 0.14f,
+                new Vector2(340f, 56f));
+        }
+
+        if (victory && loadSaveButton != null)
+            SheikahUiStyle.PlaceCentered(loadSaveButton.GetComponent<RectTransform>(), 0.32f, new Vector2(340f, 56f));
+    }
+
+    private bool HasPrefabUi()
+    {
+        return endScreenRoot != null
+            && cardRect != null
+            && endTitleText != null
+            && endBodyText != null
+            && restartButton != null
+            && loadSaveButton != null
+            && mainMenuButton != null;
     }
 
     private void EnsureUi()
     {
+        BindFromHierarchy();
+        if (HasPrefabUi())
+            return;
+
         if (rootRect != null)
             return;
 
@@ -80,60 +149,170 @@ public sealed class DemoFlowUI : MonoBehaviour
         GameObject root = new GameObject("DemoFlowRoot", typeof(RectTransform));
         root.transform.SetParent(overlay.transform, false);
         rootRect = root.GetComponent<RectTransform>();
-        Stretch(rootRect);
+        SheikahUiStyle.Stretch(rootRect);
 
         CreateEndScreen(root.transform);
     }
 
+    private void BindListeners()
+    {
+        if (listenersBound)
+            return;
+
+        if (restartButton != null)
+            restartButton.onClick.AddListener(HandleRestartClicked);
+        if (loadSaveButton != null)
+            loadSaveButton.onClick.AddListener(HandleLoadSaveClicked);
+        if (mainMenuButton != null)
+            mainMenuButton.onClick.AddListener(HandleReturnToMenuClicked);
+
+        listenersBound = restartButton != null;
+    }
+
+    private void BindFromHierarchy()
+    {
+        if (rootRect == null)
+        {
+            Transform found = transform.Find("DemoFlowRoot");
+            if (found != null)
+                rootRect = found as RectTransform;
+        }
+
+        if (endScreenRoot == null)
+        {
+            Transform found = rootRect != null ? rootRect.Find("EndScreen") : transform.Find("DemoFlowRoot/EndScreen");
+            if (found != null)
+                endScreenRoot = found.gameObject;
+        }
+
+        Transform card = null;
+        if (cardRect == null && endScreenRoot != null)
+        {
+            card = endScreenRoot.transform.Find("Card");
+            if (card != null)
+                cardRect = card as RectTransform;
+        }
+
+        if (card == null && cardRect != null)
+            card = cardRect;
+
+        if (card == null)
+            return;
+
+        if (endTitleText == null)
+        {
+            Transform title = card.Find("Title");
+            if (title != null)
+                endTitleText = title.GetComponent<TextMeshProUGUI>();
+        }
+
+        if (endBodyText == null)
+        {
+            Transform body = card.Find("Body");
+            if (body != null)
+                endBodyText = body.GetComponent<TextMeshProUGUI>();
+        }
+
+        if (restartButton == null)
+        {
+            Transform button = card.Find("RestartButton");
+            if (button != null)
+                restartButton = button.GetComponent<Button>();
+        }
+
+        if (loadSaveButton == null)
+        {
+            Transform button = card.Find("LoadSaveButton");
+            if (button != null)
+                loadSaveButton = button.GetComponent<Button>();
+        }
+
+        if (mainMenuButton == null)
+        {
+            Transform button = card.Find("MainMenuButton");
+            if (button != null)
+                mainMenuButton = button.GetComponent<Button>();
+        }
+    }
+
     private void CreateEndScreen(Transform parent)
     {
-        endScreenRoot = new GameObject("EndScreen", typeof(RectTransform));
-        endScreenRoot.transform.SetParent(parent, false);
-        RectTransform endRect = endScreenRoot.GetComponent<RectTransform>();
-        Stretch(endRect);
+        Sprite slotSprite = SheikahUiStyle.SlotSprite;
 
-        Image backdrop = endScreenRoot.AddComponent<Image>();
-        backdrop.color = new Color(0f, 0f, 0f, 0.72f);
+        endScreenRoot = SheikahUiStyle.CreateChild(parent, "EndScreen").gameObject;
+        SheikahUiStyle.Stretch(endScreenRoot.GetComponent<RectTransform>());
+
+        Image backdrop = SheikahUiStyle.CreateChild(endScreenRoot.transform, "Dim", typeof(Image)).GetComponent<Image>();
+        SheikahUiStyle.Stretch(backdrop.rectTransform);
+        backdrop.color = SheikahUiStyle.Dim;
         backdrop.raycastTarget = true;
 
-        GameObject card = new GameObject("Card", typeof(RectTransform), typeof(Image));
-        card.transform.SetParent(endScreenRoot.transform, false);
-        RectTransform cardRect = card.GetComponent<RectTransform>();
-        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
-        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(520f, 300f);
+        GameObject card = SheikahUiStyle.CreateCard(endScreenRoot.transform, "Card", new Vector2(520f, DefeatCardHeight), SheikahUiStyle.PanelSprite, 2.4f);
+        cardRect = card.GetComponent<RectTransform>();
 
-        Image cardImage = card.GetComponent<Image>();
-        cardImage.color = new Color(0.12f, 0.1f, 0.08f, 0.95f);
-
-        endTitleText = CreateText(card, "Title", string.Empty, 42, TextAnchor.MiddleCenter);
+        endTitleText = SheikahUiStyle.CreateText(
+            card.transform,
+            "Title",
+            string.Empty,
+            40f,
+            TextAlignmentOptions.Center,
+            FontStyles.Bold,
+            SheikahUiStyle.Orange);
         RectTransform titleRect = endTitleText.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = new Vector2(0f, -36f);
-        titleRect.sizeDelta = new Vector2(-48f, 60f);
-        ChineseUIFont.Apply(endTitleText, 42, FontStyle.Bold);
+        titleRect.anchoredPosition = new Vector2(0f, -48f);
+        titleRect.sizeDelta = new Vector2(-96f, 52f);
 
-        endBodyText = CreateText(card, "Body", string.Empty, 24, TextAnchor.MiddleCenter);
+        endBodyText = SheikahUiStyle.CreateText(
+            card.transform,
+            "Body",
+            string.Empty,
+            22f,
+            TextAlignmentOptions.Center,
+            FontStyles.Normal,
+            SheikahUiStyle.Text);
         RectTransform bodyRect = endBodyText.rectTransform;
-        bodyRect.anchorMin = new Vector2(0f, 0.5f);
-        bodyRect.anchorMax = new Vector2(1f, 0.5f);
+        bodyRect.anchorMin = new Vector2(0f, 0.58f);
+        bodyRect.anchorMax = new Vector2(1f, 0.58f);
         bodyRect.pivot = new Vector2(0.5f, 0.5f);
-        bodyRect.anchoredPosition = new Vector2(0f, 10f);
-        bodyRect.sizeDelta = new Vector2(-48f, 80f);
+        bodyRect.anchoredPosition = Vector2.zero;
+        bodyRect.sizeDelta = new Vector2(-80f, 80f);
 
-        restartButton = CreateButton(card.transform, "RestartButton", "再试一次");
-        RectTransform buttonRect = restartButton.GetComponent<RectTransform>();
-        buttonRect.anchorMin = new Vector2(0.5f, 0f);
-        buttonRect.anchorMax = new Vector2(0.5f, 0f);
-        buttonRect.pivot = new Vector2(0.5f, 0f);
-        buttonRect.anchoredPosition = new Vector2(0f, 36f);
-        buttonRect.sizeDelta = new Vector2(220f, 52f);
-        restartButton.onClick.AddListener(HandleRestartClicked);
+        restartButton = CreateMenuButton(card.transform, "RestartButton", "再试一次", 0.34f, slotSprite);
+        loadSaveButton = CreateMenuButton(card.transform, "LoadSaveButton", "读取存档", 0.32f, slotSprite);
+        loadSaveButton.gameObject.SetActive(false);
+        mainMenuButton = CreateMenuButton(card.transform, "MainMenuButton", "返回主菜单", 0.14f, slotSprite);
 
         endScreenRoot.SetActive(false);
+    }
+
+    private static Button CreateMenuButton(Transform parent, string name, string label, float anchorY, Sprite slotSprite)
+    {
+        Button button = SheikahUiStyle.CreateButton(
+            parent,
+            name,
+            label,
+            new Vector2(340f, 56f),
+            SheikahUiStyle.Orange,
+            SheikahUiStyle.Text,
+            slotSprite,
+            5.5f);
+        SheikahUiStyle.PlaceCentered(button.GetComponent<RectTransform>(), anchorY, new Vector2(340f, 56f));
+        return button;
+    }
+
+    private Transform ResolveCanvasRoot()
+    {
+        Canvas canvas = GetComponent<Canvas>();
+        if (canvas != null)
+            return canvas.transform;
+
+        if (rootRect != null && rootRect.parent != null)
+            return rootRect.parent;
+
+        return transform;
     }
 
     private void HandleRestartClicked()
@@ -141,44 +320,56 @@ public sealed class DemoFlowUI : MonoBehaviour
         restartCallback?.Invoke();
     }
 
-    private static Button CreateButton(Transform parent, string name, string label)
+    private void HandleLoadSaveClicked()
     {
-        GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
-        buttonObject.transform.SetParent(parent, false);
+        EnsureUi();
 
-        Image image = buttonObject.GetComponent<Image>();
-        image.color = new Color(0.78f, 0.58f, 0.22f, 1f);
+        if (endScreenRoot != null)
+            endScreenRoot.SetActive(false);
 
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = image;
+        loadingSave = false;
+        if (saveSlotPanel == null)
+            saveSlotPanel = MainMenuSaveSlotPanel.Ensure(ResolveCanvasRoot());
 
-        Text text = CreateText(buttonObject, "Label", label, 24, TextAnchor.MiddleCenter);
-        Stretch(text.rectTransform);
+        if (saveSlotPanel == null)
+        {
+            RestoreVictoryScreen();
+            return;
+        }
 
-        return button;
+        saveSlotPanel.HiddenCallback = OnLoadPanelHidden;
+        saveSlotPanel.transform.SetAsLastSibling();
+        saveSlotPanel.ShowLoad(SceneManager.GetActiveScene().name, OnLoadNavigateStarted);
     }
 
-    private static Text CreateText(GameObject parent, string name, string text, int fontSize, TextAnchor alignment)
+    private void OnLoadNavigateStarted()
     {
-        GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
-        textObject.transform.SetParent(parent.transform, false);
-        Text label = textObject.GetComponent<Text>();
-        label.text = text;
-        label.alignment = alignment;
-        label.color = Color.white;
-        label.raycastTarget = false;
-        label.horizontalOverflow = HorizontalWrapMode.Wrap;
-        label.verticalOverflow = VerticalWrapMode.Overflow;
-        ChineseUIFont.Apply(label, fontSize);
-        return label;
+        loadingSave = true;
+        Time.timeScale = 1f;
     }
 
-    private static void Stretch(RectTransform rect)
+    private void OnLoadPanelHidden()
     {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-        rect.localScale = Vector3.one;
+        if (loadingSave)
+            return;
+
+        RestoreVictoryScreen();
+    }
+
+    private void RestoreVictoryScreen()
+    {
+        if (endScreenRoot != null)
+            endScreenRoot.SetActive(true);
+
+        GameplayCursor.UnlockForUI();
+    }
+
+    /// <summary>胜负界面返回主菜单。清掉待处理读档，避免下一局误套旧进度。</summary>
+    private void HandleReturnToMenuClicked()
+    {
+        Time.timeScale = 1f;
+        SaveSession.ClearPending();
+        GameplayCursor.UnlockForUI();
+        GameSceneLoader.Load(MainMenuSceneName);
     }
 }

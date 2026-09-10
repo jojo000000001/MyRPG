@@ -47,6 +47,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   crossfadeSeconds: 0.75
+  goblinBattleEndDelaySeconds: 3
+  goblinBattleProximityRadius: 12
+  goblinForestReleaseRadius: 18
+  goblinProximityCheckInterval: 0.2
   volume: 0.65
   clipSet: {fileID: 11400000, guid: 976162b1f2ca62544a7a12993548f7cf, type: 2}
   activeSource: {fileID: 100013}

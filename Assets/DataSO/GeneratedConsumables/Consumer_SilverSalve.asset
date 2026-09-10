@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_SilverSalve
   m_EditorClassIdentifier: 
   id: 125
-  name: Silver Salve
+  name: 银药膏
   itemType: 1
-  description: A soothing salve that restores HP.
+  description: 温和药膏，能恢复生命。
   propertyList:
   - PropertyType: 0
     Value: 65

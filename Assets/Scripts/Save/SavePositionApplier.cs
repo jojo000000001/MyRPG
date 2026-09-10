@@ -1,9 +1,7 @@
-using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Applies saved player transform over several frames to survive CharacterController startup.
+/// 读档后连续几帧重写玩家坐标。CharacterController 刚启用时可能把人顶开，需要多贴几次。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class SavePositionApplier : MonoBehaviour
@@ -12,6 +10,7 @@ public sealed class SavePositionApplier : MonoBehaviour
     private SaveData data;
     private int framesRemaining;
 
+    /// <summary>在玩家物体上挂本组件，按帧把存档坐标再套一遍。</summary>
     public static void Schedule(Player targetPlayer, SaveData saveData, int frames = 5)
     {
         if (targetPlayer == null || saveData == null)
@@ -46,7 +45,9 @@ public sealed class SavePositionApplier : MonoBehaviour
         if (framesRemaining > 0)
             return;
 
-        SaveLoadService.SnapCameraToPlayer();
+        // 存档里没有镜头角时，最后一帧再把相机贴到玩家身上。
+        if (data.camera == null || !data.camera.hasLook)
+            SaveLoadService.SnapCameraToPlayer();
         Destroy(this);
     }
 }

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_EmberTonic
   m_EditorClassIdentifier: 
   id: 136
-  name: Ember Tonic
+  name: 余烬补剂
   itemType: 1
-  description: A heated tonic that sharpens attacks.
+  description: 温热补剂，能锐化攻击。
   propertyList:
   - PropertyType: 4
     Value: 30

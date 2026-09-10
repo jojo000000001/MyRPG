@@ -129,8 +129,8 @@ public sealed class MainMenuUI : MonoBehaviour
         Sprite slot = SheikahUiStyle.SlotSprite;
         StyleButton(menuCard.Find("ContinueGameButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         StyleButton(menuCard.Find("StartGameButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
-        StyleButton(menuCard.Find("SettingsButton"), slot, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
-        StyleButton(menuCard.Find("QuitButton"), slot, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
+        StyleButton(menuCard.Find("SettingsButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
+        StyleButton(menuCard.Find("QuitButton"), slot, SheikahUiStyle.Orange, SheikahUiStyle.Text);
     }
 
     private static void StyleButton(Transform buttonTransform, Sprite slot, Color tint, Color labelColor)
@@ -211,6 +211,7 @@ public sealed class MainMenuUI : MonoBehaviour
             quitButton.onClick.RemoveListener(QuitGame);
     }
 
+    /// <summary>继续最近一次保存的槽位。</summary>
     private void ContinueGame()
     {
         if (isNavigating || !SaveSystem.TryGetMostRecentSlot(out int slotIndex))

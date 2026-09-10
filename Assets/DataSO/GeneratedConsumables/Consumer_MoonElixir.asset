@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_MoonElixir
   m_EditorClassIdentifier: 
   id: 126
-  name: Moon Elixir
+  name: 月华药剂
   itemType: 1
-  description: A lunar brew that restores plenty of HP.
+  description: 月下酿成的药剂，能恢复大量生命。
   propertyList:
   - PropertyType: 0
     Value: 75

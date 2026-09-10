@@ -20,8 +20,8 @@ public sealed class PlayerStatPanel : MonoBehaviour
     [SerializeField] private Vector2 panelSize = new Vector2(400f, 560f);
     [SerializeField] private float gapFromInventory = 18f;
     [SerializeField] private float verticalOffset = 0f;
-    [SerializeField] private float padding = 24f;
-    [SerializeField] private float rowHeight = 38f;
+    [SerializeField] private float padding = 32f;
+    [SerializeField] private float rowHeight = 40f;
     [SerializeField] private float rowSpacing = 4f;
     [SerializeField] private float headerHeight = 72f;
     [SerializeField] private float bottomPadding = 20f;
@@ -37,6 +37,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
     private RectTransform rootRect;
     private GameObject inventoryPanel;
     private StatRow hpRow;
+    private StatRow shieldRow;
     private StatRow energyRow;
     private StatRow mentalRow;
     private StatRow levelRow;
@@ -49,12 +50,14 @@ public sealed class PlayerStatPanel : MonoBehaviour
     private StatRow armorRow;
     private StatRow resistRow;
 
-    private const int StatRowCount = 12;
+    private const int StatRowCount = 13;
 
     private static readonly Color PanelFallbackColor = new Color(0.25f, 0.16f, 0.10f, 0.96f);
-    private static readonly Color RowFallbackColor = new Color(0.78f, 0.61f, 0.42f, 1f);
-    private static readonly Color PrimaryTextColor = new Color(0.18f, 0.10f, 0.045f, 1f);
-    private static readonly Color MutedTextColor = new Color(0.33f, 0.20f, 0.10f, 1f);
+    private static readonly Color RowFallbackColor = new Color(0.28f, 0.16f, 0.08f, 1f);
+    private static readonly Color TitleTextColor = new Color(0.18f, 0.10f, 0.045f, 1f);
+    private static readonly Color RowLabelColor = new Color(0.86f, 0.74f, 0.52f, 1f);
+    private static readonly Color RowValueColor = new Color(0.96f, 0.90f, 0.74f, 1f);
+    private static readonly Color TitleRuleColor = new Color(0.45f, 0.30f, 0.12f, 0.55f);
 
     private void Start()
     {
@@ -82,6 +85,12 @@ public sealed class PlayerStatPanel : MonoBehaviour
             BuildPanel();
             RefreshValues();
         }
+    }
+
+    public void BindPlayer(Player target)
+    {
+        if (target != null)
+            player = target;
     }
 
     private void ResolvePlayer()
@@ -117,11 +126,11 @@ public sealed class PlayerStatPanel : MonoBehaviour
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = new Vector2(padding, -16f);
+        titleRect.anchoredPosition = new Vector2(padding, -28f);
         titleRect.sizeDelta = new Vector2(-padding * 2f, 32f);
-        title.color = PrimaryTextColor;
+        title.color = TitleTextColor;
 
-        Image rule = CreateImage(rootObject, "TitleRule", new Color(0.30f, 0.17f, 0.08f, 0.35f));
+        Image rule = CreateImage(rootObject, "TitleRule", TitleRuleColor);
         RectTransform ruleRect = rule.rectTransform;
         ruleRect.anchorMin = new Vector2(0f, 1f);
         ruleRect.anchorMax = new Vector2(1f, 1f);
@@ -133,6 +142,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
         levelRow = CreateStatRow(rootObject, "LevelRow", "等级", ref y);
         expRow = CreateStatRow(rootObject, "ExpRow", "经验", ref y);
         hpRow = CreateStatRow(rootObject, "HealthRow", "生命", ref y);
+        shieldRow = CreateStatRow(rootObject, "ShieldRow", "盾牌耐久", ref y);
         energyRow = CreateStatRow(rootObject, "EnergyRow", "能量", ref y);
         mentalRow = CreateStatRow(rootObject, "MentalRow", "精神", ref y);
         attackRow = CreateStatRow(rootObject, "AttackRow", "攻击", ref y);
@@ -163,7 +173,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
         labelRect.anchorMax = new Vector2(0.45f, 1f);
         labelRect.offsetMin = new Vector2(18f, 0f);
         labelRect.offsetMax = Vector2.zero;
-        labelText.color = MutedTextColor;
+        labelText.color = RowLabelColor;
 
         Text valueText = CreateText(rowObject, "Value", "0", valueFontSize, TextAnchor.MiddleRight, FontStyle.Bold);
         RectTransform valueRect = valueText.rectTransform;
@@ -171,7 +181,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
         valueRect.anchorMax = new Vector2(1f, 1f);
         valueRect.offsetMin = Vector2.zero;
         valueRect.offsetMax = new Vector2(-14f, 0f);
-        valueText.color = PrimaryTextColor;
+        valueText.color = RowValueColor;
         valueText.horizontalOverflow = HorizontalWrapMode.Wrap;
         valueText.verticalOverflow = VerticalWrapMode.Truncate;
         valueText.resizeTextForBestFit = true;
@@ -209,6 +219,7 @@ public sealed class PlayerStatPanel : MonoBehaviour
         SetValue(levelRow, player.Level + " 级");
         SetValue(expRow, player.Experience + " / " + player.ExperienceToNextLevel);
         SetValue(hpRow, player.CurrentHp + " / " + player.MaxHp);
+        SetValue(shieldRow, player.CurrentShieldDurability + " / " + player.MaxShieldDurability);
         SetValue(energyRow, player.CurrentEnergy + " / " + player.MaxEnergy);
         SetValue(mentalRow, player.CurrentMental + " / " + player.MaxMental);
         string attackText = player.AttackPower.ToString();

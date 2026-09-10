@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Consumer_GreaterHpPotion
   m_EditorClassIdentifier: 
   id: 106
-  name: Greater HP Potion
+  name: 高级生命药水
   itemType: 1
-  description: Restores a large amount of HP.
+  description: 能永久提升生命上限。
   propertyList:
-  - PropertyType: 0
-    Value: 150
+  - PropertyType: 5
+    Value: 10
   icon: {fileID: 21300000, guid: 9f4a69fe69bbfe74ba11cd41bc2ed461, type: 3}
   prefab: {fileID: 0}

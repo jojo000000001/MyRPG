@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_AmberWine
   m_EditorClassIdentifier: 
   id: 121
-  name: Amber Wine
+  name: 琥珀酒
   itemType: 1
-  description: A warm drink that restores HP and energy.
+  description: 温热酒饮，能恢复生命和精力。
   propertyList:
   - PropertyType: 0
     Value: 55

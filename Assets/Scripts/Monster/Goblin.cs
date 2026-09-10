@@ -24,6 +24,11 @@ public class Goblin : Monster, IPoolable
     [SerializeField] private float waitAtPointMin = 0.75f;
     [SerializeField] private float waitAtPointMax = 2.5f;
     [SerializeField] private float arrivalThreshold = 0.2f;
+    [SerializeField] private int patrolSampleAttempts = 8;
+    [SerializeField] private float obstacleRepickDelay = 0.25f;
+    [SerializeField, Range(0.05f, 0.8f)] private float minMoveProgressRatio = 0.2f;
+    [SerializeField] private float detourDistance = 2.6f;
+    [SerializeField] private LayerMask obstacleMask = ~0;
 
     // 移动参数：分别控制巡逻、追击、返程速度，以及转向和重力。
     [Header("Movement")]
@@ -45,6 +50,17 @@ public class Goblin : Monster, IPoolable
     [SerializeField] private float attackWindupSeconds = 0.25f;
     [SerializeField] private float attackLockSeconds = 0.55f;
     [SerializeField] private string attackTriggerParam = "";
+    [SerializeField] private string attackIndexParam = "AttackIndex";
+    [SerializeField] private int smashDamageBonus = 4;
+    [SerializeField] private float smashWindupSeconds = 0.68f;
+    [SerializeField] private float smashLockSeconds = 1.32f;
+    [SerializeField] private float smashCooldown = 1.9f;
+    [SerializeField] private float smashEngageRange = 2.15f;
+    [SerializeField] private float smashHitGraceRange = 0.45f;
+    [SerializeField, Range(1f, 360f)] private float smashArcDegrees = 150f;
+    [SerializeField] private float smashCommitFacingSeconds = 0.28f;
+    [SerializeField] private float smashLungeDistance = 1.4f;
+    [SerializeField] private float smashLungeSeconds = 0.16f;
 
     // 死亡参数：控制死亡后对象销毁延迟。
     [Header("Death")]
@@ -57,9 +73,12 @@ public class Goblin : Monster, IPoolable
     [SerializeField] private string weaponDropResourcePath = "Drops/Weapons";
     [SerializeField] private Vector3 dropOffset = new Vector3(0f, 0.15f, 0f);
     [SerializeField] private float dropScatterRadius = 0.35f;
+    [SerializeField] private float questWeaponDropDistance = 2.6f;
+    [SerializeField] private GameObject guaranteedWeaponDropPrefab;
+    [SerializeField] private string guaranteedWeaponDropResourcePath = "Drops/Weapons/PF_Drop_Weapon_Sword02";
 
     [Header("Hit Reaction")]
-    [SerializeField] private float hitStaggerSeconds = 0.3f;
+    [SerializeField] private float hitStaggerSeconds = 0.12f;
     [SerializeField] private float hitKnockbackSpeed = 2.2f;
     [SerializeField] private float hitKnockbackUpSpeed = 0.25f;
     [SerializeField] private float hitKnockbackDamping = 14f;
@@ -75,6 +94,13 @@ public class Goblin : Monster, IPoolable
         Dead          // 死亡后停止行为
     }
 
+    private enum MoveResult
+    {
+        Moving,
+        Arrived,
+        Blocked
+    }
+
     // 当前状态保留为可序列化字段，便于在 Inspector 中观察调试。
     [SerializeField] private State currentState = State.PatrolWait;
 
@@ -82,16 +108,31 @@ public class Goblin : Monster, IPoolable
     private CharacterController characterController;
     private Vector3 home;
     private Vector3 patrolTarget;
+    private Vector3 moveDetour;
+    private bool hasMoveDetour;
+    private float blockedStartedAt = -1f;
+    private Vector3 lastBlockedDirection;
+    private readonly Collider[] obstacleOverlap = new Collider[12];
     private Vector3 verticalVelocity;
     private float waitUntil;
     private float attackStartedAt = -999f;
     private float nextAttackAt = -999f;
     private bool attackDamageApplied;
+    private int nextAttackIndex;
+    private int currentAttackIndex;
+    private const int SlashAttackIndex = 0;
+    private const int SmashAttackIndex = 1;
     private Vector3 hitKnockbackVelocity;
     private float hitStaggerUntil = -999f;
+    private Vector3 smashLungeDirection = Vector3.forward;
+    private bool smashFacingLocked;
     private bool lootDropped;
+    private bool guaranteedBestWeaponDrop;
     private bool spawnInitialized;
     private Coroutine releaseRoutine;
+    private float prefabDetectRadius;
+    private float prefabLoseRadius;
+    private float prefabLeashRadius;
 
     // 对外暴露当前状态名称，方便 UI、调试面板或测试读取。
     public string CurrentStateName => currentState.ToString();
@@ -109,6 +150,10 @@ public class Goblin : Monster, IPoolable
             if (capsuleCollider != null)
                 capsuleCollider.enabled = false;
         }
+
+        prefabDetectRadius = detectRadius;
+        prefabLoseRadius = loseRadius;
+        prefabLeashRadius = leashRadius;
     }
 
     private void Start()
@@ -138,6 +183,35 @@ public class Goblin : Monster, IPoolable
         EnterState(State.Chase);
     }
 
+    /// <summary>
+    /// 死后必定掉落当前武器掉落池里攻击力最高的那把，用于首个任务入侵哥布林。
+    /// </summary>
+    public void ForceGuaranteedBestWeaponDrop()
+    {
+        guaranteedBestWeaponDrop = true;
+    }
+
+    /// <summary>读档移除已死亡哥布林：不掉落，直接还回对象池。</summary>
+    public override void RemoveForSaveRestore()
+    {
+        UnregisterWithoutDeath();
+        BgmManager.NotifyGoblinDied(GetInstanceID());
+
+        if (characterController != null)
+            characterController.enabled = false;
+
+        if (releaseRoutine != null)
+        {
+            StopCoroutine(releaseRoutine);
+            releaseRoutine = null;
+        }
+
+        StopAllCoroutines();
+
+        if (!PooledObject.TryRelease(gameObject))
+            Destroy(gameObject);
+    }
+
     public void OnReturnedToPool()
     {
         BgmManager.NotifyGoblinDisengaged(GetInstanceID());
@@ -152,22 +226,33 @@ public class Goblin : Monster, IPoolable
         currentState = State.Dead;
         verticalVelocity = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;
+        guaranteedBestWeaponDrop = false;
     }
 
     private void ResetForSpawn()
     {
         spawnInitialized = true;
-        hp = Mathf.Max(1, maxHp);
+        RestorePrefabVitals();
+        detectRadius = prefabDetectRadius > 0f ? prefabDetectRadius : detectRadius;
+        loseRadius = prefabLoseRadius > 0f ? prefabLoseRadius : loseRadius;
+        leashRadius = prefabLeashRadius > 0f ? prefabLeashRadius : leashRadius;
         lastHitTime = -999f;
         lootDropped = false;
         waitUntil = 0f;
         attackStartedAt = -999f;
         nextAttackAt = -999f;
         attackDamageApplied = false;
+        nextAttackIndex = SlashAttackIndex;
+        currentAttackIndex = SlashAttackIndex;
+        smashFacingLocked = false;
+        smashLungeDirection = Vector3.forward;
         hitKnockbackVelocity = Vector3.zero;
         hitStaggerUntil = -999f;
         verticalVelocity = Vector3.zero;
         home = transform.position;
+        hasMoveDetour = false;
+        blockedStartedAt = -1f;
+        lastBlockedDirection = Vector3.zero;
 
         if (characterController != null)
             characterController.enabled = true;
@@ -193,6 +278,10 @@ public class Goblin : Monster, IPoolable
         waitAtPointMin = Mathf.Max(0f, waitAtPointMin);
         waitAtPointMax = Mathf.Max(waitAtPointMin, waitAtPointMax);
         arrivalThreshold = Mathf.Max(0.01f, arrivalThreshold);
+        patrolSampleAttempts = Mathf.Max(1, patrolSampleAttempts);
+        obstacleRepickDelay = Mathf.Max(0.05f, obstacleRepickDelay);
+        minMoveProgressRatio = Mathf.Clamp(minMoveProgressRatio, 0.05f, 0.8f);
+        detourDistance = Mathf.Max(0.5f, detourDistance);
         moveSpeed = Mathf.Max(0f, moveSpeed);
         chaseSpeed = Mathf.Max(0f, chaseSpeed);
         returnSpeed = Mathf.Max(0f, returnSpeed);
@@ -204,6 +293,16 @@ public class Goblin : Monster, IPoolable
         attackCooldown = Mathf.Max(0.05f, attackCooldown);
         attackWindupSeconds = Mathf.Max(0f, attackWindupSeconds);
         attackLockSeconds = Mathf.Max(attackWindupSeconds, attackLockSeconds);
+        smashWindupSeconds = Mathf.Max(0f, smashWindupSeconds);
+        smashLockSeconds = Mathf.Max(smashWindupSeconds, smashLockSeconds);
+        smashCooldown = Mathf.Max(0.05f, smashCooldown);
+        smashEngageRange = Mathf.Max(attackRange, smashEngageRange);
+        smashHitGraceRange = Mathf.Max(0f, smashHitGraceRange);
+        smashArcDegrees = Mathf.Clamp(smashArcDegrees, 1f, 360f);
+        smashCommitFacingSeconds = Mathf.Clamp(smashCommitFacingSeconds, 0f, smashWindupSeconds);
+        smashLungeDistance = Mathf.Max(0f, smashLungeDistance);
+        smashLungeSeconds = Mathf.Max(0.05f, smashLungeSeconds);
+        smashDamageBonus = Mathf.Max(0, smashDamageBonus);
         destroyAfterDeathSeconds = Mathf.Max(0f, destroyAfterDeathSeconds);
         dropChance = Mathf.Clamp01(dropChance);
         weaponDropChance = Mathf.Clamp01(weaponDropChance);
@@ -292,7 +391,7 @@ public class Goblin : Monster, IPoolable
         }
     }
 
-    // 巡逻移动：向随机巡逻点移动，到达后回到等待状态。
+    // 巡逻移动：向随机巡逻点移动；撞到障碍就另选一个点。
     private void UpdatePatrolMove()
     {
         if (CanDetectTarget())
@@ -301,8 +400,15 @@ public class Goblin : Monster, IPoolable
             return;
         }
 
-        if (MoveToward(patrolTarget, moveSpeed))
+        MoveResult result = MoveToward(patrolTarget, moveSpeed);
+        if (result == MoveResult.Arrived)
+        {
             EnterState(State.PatrolWait);
+            return;
+        }
+
+        if (result == MoveResult.Blocked)
+            PickPatrolTarget(lastBlockedDirection);
     }
 
     // 追击：保持面向目标，进入攻击范围则切换攻击，失去目标则返程。
@@ -322,7 +428,16 @@ public class Goblin : Monster, IPoolable
             return;
         }
 
-        MoveToward(target.position, chaseSpeed);
+        Vector3 destination = hasMoveDetour ? moveDetour : target.position;
+        MoveResult result = MoveToward(destination, chaseSpeed);
+        if (result == MoveResult.Arrived && hasMoveDetour)
+        {
+            ClearMoveDetour();
+            return;
+        }
+
+        if (result == MoveResult.Blocked)
+            PickDetourToward(target.position);
     }
 
     // 攻击：处理前摇伤害、攻击锁定时间和下一次攻击冷却。
@@ -336,17 +451,22 @@ public class Goblin : Monster, IPoolable
             return;
         }
 
-        FaceTarget();
-        MoveVerticalOnly();
-
         float elapsed = Time.time - attackStartedAt;
-        if (!attackDamageApplied && elapsed >= attackWindupSeconds)
+        if (IsSmashAttack)
+            UpdateHatSmashMotion(elapsed);
+        else
+        {
+            FaceTarget();
+            MoveVerticalOnly();
+        }
+
+        if (!attackDamageApplied && elapsed >= GetCurrentAttackWindupSeconds())
         {
             attackDamageApplied = true;
             ApplyAttackDamage();
         }
 
-        if (elapsed < attackLockSeconds)
+        if (elapsed < GetCurrentAttackLockSeconds())
             return;
 
         if (!IsTargetInAttackRange())
@@ -368,8 +488,21 @@ public class Goblin : Monster, IPoolable
             return;
         }
 
-        if (MoveToward(home, returnSpeed))
+        MoveResult result = MoveToward(hasMoveDetour ? moveDetour : home, returnSpeed);
+        if (result == MoveResult.Arrived)
+        {
+            if (hasMoveDetour)
+            {
+                ClearMoveDetour();
+                return;
+            }
+
             EnterState(State.PatrolWait);
+            return;
+        }
+
+        if (result == MoveResult.Blocked)
+            PickDetourToward(home);
     }
 
     // 状态切换入口：集中处理进入某个状态时需要做的一次性初始化。
@@ -381,6 +514,8 @@ public class Goblin : Monster, IPoolable
         State previousState = currentState;
         currentState = nextState;
         UpdateCombatMusic(previousState, nextState);
+        ClearMoveDetour();
+        blockedStartedAt = -1f;
 
         switch (currentState)
         {
@@ -418,16 +553,45 @@ public class Goblin : Monster, IPoolable
             BgmManager.NotifyGoblinDisengaged(GetInstanceID());
     }
 
-    // 开始一次攻击，记录计时并触发可选的攻击动画参数。
+    // 开始一次攻击：横斩与帽子头槌轮流，帽子头槌带前扑。
     private void BeginAttack()
     {
+        currentAttackIndex = nextAttackIndex;
+        nextAttackIndex = currentAttackIndex == SlashAttackIndex ? SmashAttackIndex : SlashAttackIndex;
         attackStartedAt = Time.time;
-        nextAttackAt = Time.time + attackCooldown;
+        nextAttackAt = Time.time + GetCurrentAttackCooldown();
         attackDamageApplied = false;
+        smashFacingLocked = false;
+        CacheSmashAim();
         SetLocomotionSpeed01(0f);
 
-        if (!string.IsNullOrEmpty(attackTriggerParam) && HasAnimatorParameter(attackTriggerParam, AnimatorControllerParameterType.Trigger))
+        if (animator == null)
+            return;
+
+        if (!string.IsNullOrEmpty(attackIndexParam)
+            && HasAnimatorParameter(attackIndexParam, AnimatorControllerParameterType.Int))
+            animator.SetInteger(attackIndexParam, currentAttackIndex);
+
+        if (!string.IsNullOrEmpty(attackTriggerParam)
+            && HasAnimatorParameter(attackTriggerParam, AnimatorControllerParameterType.Trigger))
             animator.SetTrigger(attackTriggerParam);
+    }
+
+    private bool IsSmashAttack => currentAttackIndex == SmashAttackIndex;
+
+    private float GetCurrentAttackWindupSeconds()
+    {
+        return IsSmashAttack ? smashWindupSeconds : attackWindupSeconds;
+    }
+
+    private float GetCurrentAttackLockSeconds()
+    {
+        return IsSmashAttack ? smashLockSeconds : attackLockSeconds;
+    }
+
+    private float GetCurrentAttackCooldown()
+    {
+        return IsSmashAttack ? smashCooldown : attackCooldown;
     }
 
     // 在攻击前摇结束后尝试结算伤害，只命中仍在有效范围内的目标。
@@ -439,11 +603,11 @@ public class Goblin : Monster, IPoolable
         Vector3 direction = target.position - transform.position;
         direction.y = 0f;
 
-        float hitRange = attackRange + attackHitGraceRange;
+        float hitRange = GetCurrentAttackHitRange();
         if (direction.magnitude > hitRange)
             return;
 
-        if (!IsInsideAttackArc(direction))
+        if (!IsInsideAttackArc(direction, GetCurrentAttackArcDegrees()))
             return;
 
         IDamageable damageable = FindDamageable(target);
@@ -455,15 +619,16 @@ public class Goblin : Monster, IPoolable
         else
             direction = transform.forward;
 
+        int baseDamage = attackDamage + (IsSmashAttack ? smashDamageBonus : 0);
         int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, attackDamageType);
-        int damageAmount = ResolveOutgoingDamage(attackDamage, targetDefense, attackDamageType, out bool isCritical);
+        int damageAmount = ResolveOutgoingDamage(baseDamage, targetDefense, attackDamageType, out bool isCritical);
         DamageInfo damage = new DamageInfo(damageAmount, gameObject, target.position, direction, attackDamageType, isCritical);
         if (damageable.TryTakeDamage(damage))
             TryApplyAttackLifeSteal(damageAmount);
     }
 
     // 水平移动到指定位置，同时应用竖直速度并同步朝向。
-    private bool MoveToward(Vector3 destination, float speed)
+    private MoveResult MoveToward(Vector3 destination, float speed)
     {
         Vector3 position = transform.position;
         Vector3 toTarget = new Vector3(destination.x, position.y, destination.z) - position;
@@ -474,15 +639,99 @@ public class Goblin : Monster, IPoolable
         {
             SetLocomotionSpeed01(0f);
             MoveVerticalOnly();
-            return true;
+            blockedStartedAt = -1f;
+            return MoveResult.Arrived;
         }
 
         Vector3 direction = toTarget / distance;
         RotateToward(direction);
 
         SetLocomotionSpeed01(speed > 0f ? 1f : 0f);
-        characterController.Move((direction * speed + verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
-        return false;
+        Vector3 before = transform.position;
+        CollisionFlags flags = characterController.Move((direction * speed + verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
+
+        Vector3 planarDelta = transform.position - before;
+        planarDelta.y = 0f;
+        float expectedMove = speed * Time.deltaTime;
+        if (IsMovementBlocked(flags, planarDelta.magnitude, expectedMove, distance))
+        {
+            lastBlockedDirection = direction;
+            if (blockedStartedAt < 0f)
+                blockedStartedAt = Time.time;
+
+            if (Time.time - blockedStartedAt >= obstacleRepickDelay)
+            {
+                blockedStartedAt = -1f;
+                return MoveResult.Blocked;
+            }
+        }
+        else
+        {
+            blockedStartedAt = -1f;
+        }
+
+        return MoveResult.Moving;
+    }
+
+    private bool IsMovementBlocked(CollisionFlags flags, float progress, float expectedMove, float remainingDistance)
+    {
+        if (expectedMove < 0.0001f || remainingDistance <= arrivalThreshold * 2f)
+            return false;
+
+        if ((flags & CollisionFlags.Sides) == 0)
+            return false;
+
+        return progress < expectedMove * minMoveProgressRatio;
+    }
+
+    private void ClearMoveDetour()
+    {
+        hasMoveDetour = false;
+        moveDetour = Vector3.zero;
+    }
+
+    private void PickDetourToward(Vector3 goal)
+    {
+        Vector3 position = transform.position;
+        Vector3 toGoal = goal - position;
+        toGoal.y = 0f;
+        if (toGoal.sqrMagnitude < 0.01f)
+        {
+            ClearMoveDetour();
+            return;
+        }
+
+        toGoal.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, toGoal);
+        if (side.sqrMagnitude < 0.01f)
+            side = transform.right;
+        else
+            side.Normalize();
+
+        float distance = detourDistance;
+        Vector3[] candidates =
+        {
+            position + side * distance + toGoal * (distance * 0.55f),
+            position - side * distance + toGoal * (distance * 0.55f),
+            position + side * distance,
+            position - side * distance,
+            position - toGoal * distance
+        };
+
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            if (!IsPlanarPathClear(candidates[i]))
+                continue;
+
+            moveDetour = candidates[i];
+            hasMoveDetour = true;
+            blockedStartedAt = -1f;
+            return;
+        }
+
+        moveDetour = candidates[0];
+        hasMoveDetour = true;
+        blockedStartedAt = -1f;
     }
 
     // 不做水平移动，只应用重力产生的竖直位移。
@@ -573,11 +822,142 @@ public class Goblin : Monster, IPoolable
         waitUntil = Time.time + Random.Range(waitAtPointMin, maxWait);
     }
 
-    // 在出生点周围随机选择下一个巡逻目标点。
+    // 在出生点周围随机选择下一个巡逻目标点，避开障碍和刚才卡住的方向。
     private void PickPatrolTarget()
     {
-        Vector2 randomOffset = Random.insideUnitCircle * wanderRadius;
-        patrolTarget = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
+        PickPatrolTarget(Vector3.zero);
+    }
+
+    private void PickPatrolTarget(Vector3 avoidDirection)
+    {
+        avoidDirection.y = 0f;
+        bool hasAvoid = avoidDirection.sqrMagnitude > 0.0001f;
+        if (hasAvoid)
+            avoidDirection.Normalize();
+
+        Vector3 fallback = home;
+        bool hasFallback = false;
+
+        int attempts = Mathf.Max(1, patrolSampleAttempts);
+        for (int i = 0; i < attempts; i++)
+        {
+            Vector2 randomOffset = Random.insideUnitCircle * wanderRadius;
+            Vector3 candidate = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
+            Vector3 fromHere = candidate - transform.position;
+            fromHere.y = 0f;
+
+            if (fromHere.sqrMagnitude < arrivalThreshold * arrivalThreshold)
+                continue;
+
+            if (hasAvoid && Vector3.Dot(fromHere.normalized, avoidDirection) > 0.35f)
+                continue;
+
+            if (!IsPlanarPathClear(candidate))
+                continue;
+
+            patrolTarget = candidate;
+            blockedStartedAt = -1f;
+            return;
+        }
+
+        for (int i = 0; i < attempts; i++)
+        {
+            Vector2 randomOffset = Random.insideUnitCircle * wanderRadius;
+            Vector3 candidate = home + new Vector3(randomOffset.x, 0f, randomOffset.y);
+            if (!IsPlanarPathClear(candidate))
+                continue;
+
+            fallback = candidate;
+            hasFallback = true;
+            break;
+        }
+
+        patrolTarget = hasFallback ? fallback : home + Quaternion.Euler(0f, Random.Range(0f, 360f), 0f) * Vector3.forward * Mathf.Max(1.2f, wanderRadius * 0.4f);
+        blockedStartedAt = -1f;
+    }
+
+    private bool IsPlanarPathClear(Vector3 destination)
+    {
+        Vector3 origin = GetProbeOrigin(transform.position);
+        Vector3 dest = GetProbeOrigin(destination);
+        Vector3 delta = dest - origin;
+        delta.y = 0f;
+        float distance = delta.magnitude;
+        float radius = GetProbeRadius();
+
+        if (IsDestinationOccupied(dest, radius))
+            return false;
+
+        if (distance <= arrivalThreshold)
+            return true;
+
+        if (!Physics.SphereCast(origin, radius, delta / distance, out RaycastHit hit, distance, obstacleMask, QueryTriggerInteraction.Ignore))
+            return true;
+
+        if (hit.normal.y > 0.65f)
+            return true;
+
+        return !HitsStaticObstacle(hit.collider);
+    }
+
+    private bool IsDestinationOccupied(Vector3 probe, float radius)
+    {
+        int count = Physics.OverlapSphereNonAlloc(probe, radius, obstacleOverlap, obstacleMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            Collider collider = obstacleOverlap[i];
+            if (!HitsStaticObstacle(collider) || IsGroundCollider(collider, probe))
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsGroundCollider(Collider collider, Vector3 probe)
+    {
+        if (collider == null)
+            return false;
+
+        if (!Physics.Raycast(probe + Vector3.up * 0.25f, Vector3.down, out RaycastHit hit, 2f, obstacleMask, QueryTriggerInteraction.Ignore))
+            return false;
+
+        return hit.collider == collider && hit.normal.y > 0.65f;
+    }
+
+    private bool HitsStaticObstacle(Collider collider)
+    {
+        if (collider == null || !collider.enabled)
+            return false;
+
+        Transform hitTransform = collider.transform;
+        if (hitTransform == transform || hitTransform.IsChildOf(transform) || transform.IsChildOf(hitTransform))
+            return false;
+
+        if (hitTransform.GetComponentInParent<Player>() != null)
+            return false;
+
+        if (hitTransform.GetComponentInParent<Monster>() != null)
+            return false;
+
+        return true;
+    }
+
+    private Vector3 GetProbeOrigin(Vector3 position)
+    {
+        float height = characterController != null
+            ? Mathf.Max(characterController.radius, characterController.height * 0.35f)
+            : 0.6f;
+        return new Vector3(position.x, position.y + height, position.z);
+    }
+
+    private float GetProbeRadius()
+    {
+        if (characterController == null)
+            return 0.25f;
+
+        return Mathf.Max(0.08f, characterController.radius * 0.85f);
     }
 
     // 如果没有目标，尝试把场景单例 Player 作为追击目标。
@@ -632,12 +1012,77 @@ public class Goblin : Monster, IPoolable
     // 判断目标是否进入可攻击距离。
     private bool IsTargetInAttackRange()
     {
-        return HasValidTarget() && GetPlanarDistance(transform.position, target.position) <= attackRange;
+        if (!HasValidTarget())
+            return false;
+
+        float range = nextAttackIndex == SmashAttackIndex ? smashEngageRange : attackRange;
+        return GetPlanarDistance(transform.position, target.position) <= range;
+    }
+
+    private float GetCurrentAttackHitRange()
+    {
+        return IsSmashAttack
+            ? smashEngageRange + smashHitGraceRange
+            : attackRange + attackHitGraceRange;
+    }
+
+    private float GetCurrentAttackArcDegrees()
+    {
+        return IsSmashAttack ? smashArcDegrees : attackArcDegrees;
+    }
+
+    private void CacheSmashAim()
+    {
+        Vector3 direction = Vector3.zero;
+        if (target != null)
+        {
+            direction = target.position - transform.position;
+            direction.y = 0f;
+        }
+
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            direction = transform.forward;
+            direction.y = 0f;
+        }
+
+        smashLungeDirection = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+    }
+
+    private void UpdateHatSmashMotion(float elapsed)
+    {
+        if (!smashFacingLocked)
+        {
+            FaceTarget();
+            CacheSmashAim();
+            if (elapsed >= smashCommitFacingSeconds)
+                smashFacingLocked = true;
+        }
+
+        float lungeStart = Mathf.Max(0f, smashWindupSeconds - smashLungeSeconds * 0.75f);
+        if (elapsed >= lungeStart && elapsed < lungeStart + smashLungeSeconds && smashLungeDistance > 0f)
+        {
+            float speed = smashLungeDistance / smashLungeSeconds;
+            if (characterController != null)
+            {
+                characterController.Move(
+                    (smashLungeDirection * speed + verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
+            }
+
+            return;
+        }
+
+        MoveVerticalOnly();
     }
 
     private bool IsInsideAttackArc(Vector3 directionToTarget)
     {
-        if (attackArcDegrees >= 359f)
+        return IsInsideAttackArc(directionToTarget, attackArcDegrees);
+    }
+
+    private bool IsInsideAttackArc(Vector3 directionToTarget, float arcDegrees)
+    {
+        if (arcDegrees >= 359f)
             return true;
 
         directionToTarget.y = 0f;
@@ -650,7 +1095,7 @@ public class Goblin : Monster, IPoolable
             return true;
 
         float angle = Vector3.Angle(forward, directionToTarget);
-        return angle <= attackArcDegrees * 0.5f;
+        return angle <= arcDegrees * 0.5f;
     }
 
 
@@ -727,7 +1172,7 @@ public class Goblin : Monster, IPoolable
     protected override void OnDeath()
     {
         base.OnDeath();
-        BgmManager.NotifyGoblinDisengaged(GetInstanceID());
+        BgmManager.NotifyGoblinDied(GetInstanceID());
         currentState = State.Dead;
         verticalVelocity = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;
@@ -760,22 +1205,148 @@ public class Goblin : Monster, IPoolable
 
         lootDropped = true;
 
-        if (Random.value > dropChance)
-            return;
+        bool forceBestWeapon = guaranteedBestWeaponDrop || IsInvadingQuestGoblin();
 
-        bool preferWeapon = Random.value < weaponDropChance;
-        GameObject dropPrefab = PickDropPrefab(preferWeapon);
+        GameObject dropPrefab = forceBestWeapon
+            ? PickHighestAttackWeaponPrefab()
+            : PickRandomDropPrefab();
+
         if (dropPrefab == null)
             return;
 
-        Vector2 scatter = Random.insideUnitCircle * dropScatterRadius;
-        Vector3 dropPosition = transform.position + dropOffset + new Vector3(scatter.x, 0f, scatter.y);
+        Vector3 dropPosition = ResolveDropPosition(forceBestWeapon);
         Quaternion dropRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-        GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
-        if (pool == null)
+        GameObject dropInstance = SpawnDrop(dropPrefab, dropPosition, dropRotation);
+        if (dropInstance == null || !forceBestWeapon)
             return;
 
-        pool.Get(dropPrefab, dropPosition, dropRotation);
+        ConsumablePickup pickup = dropInstance.GetComponent<ConsumablePickup>();
+        if (pickup == null)
+            return;
+
+        pickup.DelayPickup(0.45f);
+        pickup.SetAutoEquipOnPickup(false);
+    }
+
+    private GameObject PickRandomDropPrefab()
+    {
+        if (Random.value > dropChance)
+            return null;
+
+        bool preferWeapon = Random.value < weaponDropChance;
+        return PickDropPrefab(preferWeapon);
+    }
+
+    private GameObject PickHighestAttackWeaponPrefab()
+    {
+        GameObject best = guaranteedWeaponDropPrefab;
+        int bestAttack = ReadWeaponAttack(best);
+        int bestId = ReadWeaponId(best);
+
+        GameObject[] weapons = LoadDropPool(weaponDropResourcePath);
+        for (int i = 0; i < weapons.Length; i++)
+        {
+            GameObject candidate = weapons[i];
+            int attack = ReadWeaponAttack(candidate);
+            int id = ReadWeaponId(candidate);
+            if (candidate == null || attack < 0)
+                continue;
+
+            if (attack > bestAttack || (attack == bestAttack && id > bestId))
+            {
+                best = candidate;
+                bestAttack = attack;
+                bestId = id;
+            }
+        }
+
+        if (best != null)
+            return best;
+
+        GameObject loaded = Resources.Load<GameObject>(guaranteedWeaponDropResourcePath);
+        if (loaded != null)
+            return loaded;
+
+        return PickDropPrefab(true);
+    }
+
+    private Vector3 ResolveDropPosition(bool questWeaponDrop)
+    {
+        Vector3 dropPosition = transform.position + dropOffset;
+        if (questWeaponDrop)
+        {
+            dropPosition += ResolveQuestWeaponDropOffset();
+        }
+        else
+        {
+            Vector2 scatter = Random.insideUnitCircle * dropScatterRadius;
+            dropPosition += new Vector3(scatter.x, 0f, scatter.y);
+        }
+
+        Vector3 rayOrigin = dropPosition + Vector3.up * 2f;
+        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 6f, ~0, QueryTriggerInteraction.Ignore))
+            dropPosition.y = hit.point.y + 0.12f;
+
+        return dropPosition;
+    }
+
+    private Vector3 ResolveQuestWeaponDropOffset()
+    {
+        Vector3 awayFromPlayer = transform.forward;
+        if (Player.Instance != null)
+        {
+            awayFromPlayer = transform.position - Player.Instance.transform.position;
+            awayFromPlayer.y = 0f;
+            if (awayFromPlayer.sqrMagnitude < 0.01f)
+                awayFromPlayer = transform.forward;
+        }
+
+        awayFromPlayer.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, awayFromPlayer);
+        if (side.sqrMagnitude < 0.01f)
+            side = transform.right;
+        side.Normalize();
+
+        return (awayFromPlayer * 0.7f + side * 0.7f).normalized * Mathf.Max(1.2f, questWeaponDropDistance);
+    }
+
+    private static GameObject SpawnDrop(GameObject dropPrefab, Vector3 dropPosition, Quaternion dropRotation)
+    {
+        GameObjectPoolService pool = GameObjectPoolService.EnsureInstance();
+        if (pool != null)
+        {
+            GameObject pooled = pool.Get(dropPrefab, dropPosition, dropRotation);
+            if (pooled != null)
+                return pooled;
+        }
+
+        return Instantiate(dropPrefab, dropPosition, dropRotation);
+    }
+
+    private bool IsInvadingQuestGoblin()
+    {
+        return string.Equals(name, "InvadingGoblin", System.StringComparison.Ordinal);
+    }
+
+    private static int ReadWeaponAttack(GameObject dropPrefab)
+    {
+        ItemSO item = ReadDropItem(dropPrefab);
+        return item != null ? item.GetPropertyValue(ItemPropertyType.AttackValue) : -1;
+    }
+
+    private static int ReadWeaponId(GameObject dropPrefab)
+    {
+        ItemSO item = ReadDropItem(dropPrefab);
+        return item != null ? item.id : int.MinValue;
+    }
+
+    private static ItemSO ReadDropItem(GameObject dropPrefab)
+    {
+        if (dropPrefab == null)
+            return null;
+
+        ConsumablePickup pickup = dropPrefab.GetComponent<ConsumablePickup>();
+        return pickup != null ? pickup.Item : null;
     }
 
     private GameObject PickDropPrefab(bool preferWeapon)

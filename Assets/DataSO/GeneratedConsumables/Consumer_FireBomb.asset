@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_FireBomb
   m_EditorClassIdentifier: 
   id: 109
-  name: Fire Bomb
+  name: 火焰炸弹
   itemType: 1
-  description: A throwable bomb infused with fire.
+  description: 灌入火焰的投掷炸弹。
   propertyList:
   - PropertyType: 4
     Value: 30

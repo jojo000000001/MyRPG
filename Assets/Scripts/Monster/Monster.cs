@@ -26,6 +26,10 @@ public abstract class Monster : MonoBehaviour, IDamageable
     [SerializeField] protected bool grantsExperienceOnDeath;
     [Tooltip("死亡时给予玩家的经验值。")]
     [SerializeField] protected int xpRewardOnDeath = 20;
+    [Tooltip("死亡时是否给玩家发放卢比。")]
+    [SerializeField] protected bool grantsRupeesOnDeath = true;
+    [Tooltip("死亡时给予玩家的卢比。")]
+    [SerializeField] protected int rupeeRewardOnDeath = 40;
     [Tooltip("额外伤害百分比，10 表示 +10%。")]
     [SerializeField] protected float damageBonusPercent;
     [Tooltip("暴击率（0.05 = 5%）。")]
@@ -46,6 +50,9 @@ public abstract class Monster : MonoBehaviour, IDamageable
     protected float lastHitTime = -999f;
     protected Animator animator;
     private HitFeedback hitFeedback;
+    private int prefabMaxHp;
+    private bool prefabGrantsRupeesOnDeath;
+    private int prefabRupeeRewardOnDeath;
 
     /// <summary>当前生命值。</summary>
     public int CurrentHp => hp;
@@ -58,6 +65,12 @@ public abstract class Monster : MonoBehaviour, IDamageable
     {
         maxHp = Mathf.Max(1, value);
         hp = maxHp;
+    }
+
+    public void SetRupeeRewardOnDeath(int amount)
+    {
+        rupeeRewardOnDeath = Mathf.Max(0, amount);
+        grantsRupeesOnDeath = rupeeRewardOnDeath > 0;
     }
 
     /// <summary>物理护甲。</summary>
@@ -119,17 +132,36 @@ public abstract class Monster : MonoBehaviour, IDamageable
 
     protected virtual void Awake()
     {
-        hp = Mathf.Max(1, maxHp);
+        prefabMaxHp = Mathf.Max(1, maxHp);
+        hp = prefabMaxHp;
+        prefabGrantsRupeesOnDeath = grantsRupeesOnDeath;
+        prefabRupeeRewardOnDeath = Mathf.Max(0, rupeeRewardOnDeath);
         animator = GetComponent<Animator>();
         hitFeedback = GetComponent<HitFeedback>();
         if (hitFeedback == null)
             hitFeedback = gameObject.AddComponent<HitFeedback>();
     }
 
+    protected void RestorePrefabVitals()
+    {
+        int restoredMaxHp = prefabMaxHp > 0 ? prefabMaxHp : Mathf.Max(1, maxHp);
+        maxHp = restoredMaxHp;
+        hp = restoredMaxHp;
+        grantsRupeesOnDeath = prefabGrantsRupeesOnDeath;
+        rupeeRewardOnDeath = Mathf.Max(0, prefabRupeeRewardOnDeath);
+    }
+
     protected virtual void OnEnable()
     {
         if (!ActiveInstances.Contains(this))
             ActiveInstances.Add(this);
+
+        ApplyMonsterCollisionLayer();
+    }
+
+    private void ApplyMonsterCollisionLayer()
+    {
+        ApplyMonsterCollisionLayer(this);
     }
 
     protected virtual void OnDisable()
@@ -180,6 +212,30 @@ public abstract class Monster : MonoBehaviour, IDamageable
         return true;
     }
 
+    public virtual bool ShouldShowHealthBar => !IsDead;
+
+    /// <summary>读档还原存活单位的当前生命。下限为 1，死亡走 RemoveForSaveRestore。</summary>
+    public void SetCurrentHp(int value)
+    {
+        hp = Mathf.Clamp(value, 1, Mathf.Max(1, maxHp));
+    }
+
+    /// <summary>
+    /// 读档时清掉已死亡单位：不发奖励、不触发 Died。默认只关掉物体。
+    /// </summary>
+    public virtual void RemoveForSaveRestore()
+    {
+        UnregisterWithoutDeath();
+        gameObject.SetActive(false);
+    }
+
+    /// <summary>从活动列表移除并标为死亡，不走掉落和任务回调。</summary>
+    protected void UnregisterWithoutDeath()
+    {
+        hp = 0;
+        ActiveInstances.Remove(this);
+    }
+
     public virtual bool TryTakeDamage(int damage)
     {
         return TryTakeDamage(new DamageInfo(damage, null, transform.position, Vector3.zero));
@@ -220,6 +276,7 @@ public abstract class Monster : MonoBehaviour, IDamageable
     {
         SetLocomotionSpeed01(0f);
         GrantExperienceToPlayer();
+        GrantRupeesToPlayer();
         ActiveInstances.Remove(this);
         Died?.Invoke();
     }
@@ -258,10 +315,46 @@ public abstract class Monster : MonoBehaviour, IDamageable
         player?.TryGainExperience(xpRewardOnDeath);
     }
 
+    private void GrantRupeesToPlayer()
+    {
+        if (!grantsRupeesOnDeath || rupeeRewardOnDeath <= 0)
+            return;
+
+        Player player = Player.Resolve();
+        player?.AddRupees(rupeeRewardOnDeath);
+    }
+
     private void PlayHitFeedback(DamageInfo damage)
     {
-        if (hitFeedback != null)
-            hitFeedback.Play(animator, hitTriggerParam, hitBoolParam, hitFlagSeconds, damage);
+        if (hitFeedback == null)
+            return;
+
+        string animatorBool = hitFlagSeconds > 0f ? hitBoolParam : string.Empty;
+        hitFeedback.Play(animator, hitTriggerParam, animatorBool, hitFlagSeconds, damage);
+    }
+
+    public static IReadOnlyList<Monster> Active => ActiveInstances;
+
+    private static void ApplyMonsterCollisionLayer(Monster monster)
+    {
+        int layer = LayerMask.NameToLayer("Monster");
+        if (layer < 0 || monster == null)
+            return;
+
+        Collider[] colliders = monster.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (collider == null || collider.isTrigger)
+                continue;
+
+            if (collider.bounds.extents.x > 20f
+                || collider.bounds.extents.y > 20f
+                || collider.bounds.extents.z > 20f)
+                continue;
+
+            collider.gameObject.layer = layer;
+        }
     }
 
     protected virtual void OnValidate()
@@ -274,5 +367,6 @@ public abstract class Monster : MonoBehaviour, IDamageable
         lifeStealPercent = Mathf.Clamp01(lifeStealPercent);
         critDamageMultiplier = Mathf.Max(1f, critDamageMultiplier);
         xpRewardOnDeath = Mathf.Max(0, xpRewardOnDeath);
+        rupeeRewardOnDeath = Mathf.Max(0, rupeeRewardOnDeath);
     }
 }

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_EnergyBar
   m_EditorClassIdentifier: 
   id: 118
-  name: Energy Bar
+  name: 能量条
   itemType: 1
-  description: A quick snack that restores energy.
+  description: 便于携带的点心，能迅速恢复精力。
   propertyList:
   - PropertyType: 1
     Value: 35

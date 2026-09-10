@@ -16,4 +16,21 @@ public static class GameplayCursor
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
+
+    /// <summary>
+    /// 背包、商店等弹窗打开时，镜头不应再跟鼠标转。
+    /// </summary>
+    public static bool BlocksWorldLook
+    {
+        get
+        {
+            if (Cursor.lockState != CursorLockMode.Locked)
+                return true;
+            if (GameplayPauseMenu.IsOpen || DialogueUI.IsOpen || ShopUI.IsOpen)
+                return true;
+
+            PlayerHUD hud = PlayerHUD.Instance;
+            return hud != null && hud.IsInventoryOpen;
+        }
+    }
 }

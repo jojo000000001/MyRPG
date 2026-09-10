@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_HP
   m_EditorClassIdentifier: 
   id: 4
-  name: HealthPotion1
+  name: 生命药水
   itemType: 0
-  description: 
+  description: 一瓶红色药水，能恢复大量生命。
   propertyList:
   - PropertyType: 0
     Value: 100

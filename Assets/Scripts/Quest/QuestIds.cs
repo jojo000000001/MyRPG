@@ -4,4 +4,6 @@
 public static class QuestIds
 {
     public const string HuntInvadingGoblin = "hunt_invading_goblin";
+    public const string DefeatAllGoblins = "defeat_all_goblins";
+    public const string SlayDragon = "slay_dragon";
 }

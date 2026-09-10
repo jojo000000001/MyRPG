@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_StaminaElixir
   m_EditorClassIdentifier: 
   id: 103
-  name: Stamina Elixir
+  name: 耐力药剂
   itemType: 1
-  description: A golden elixir prepared for future stamina systems.
+  description: 金色药剂，为耐力而备。
   propertyList:
   - PropertyType: 3
     Value: 20

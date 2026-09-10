@@ -173,8 +173,23 @@ public static class HudBarVisualStyle
     public const float CapWidth = 12f;
     public const float FillInset = 2f;
     public const float BarStackGap = 8f;
+    public const float LabelHeight = 20f;
+    public const float LabelBarGap = 4f;
 
     public static readonly Vector2 HealthAnchoredPosition = new Vector2(24f, -24f);
+
+    public static readonly Color ValueTextColor = new Color(0.22f, 0.28f, 0.36f, 1f);
+
+    public static Vector2 LabeledRootSize(Vector2? barSize = null)
+    {
+        Vector2 size = barSize ?? BarSize;
+        return new Vector2(size.x, size.y + LabelBarGap + LabelHeight);
+    }
+
+    public static float LabelAnchoredY(Vector2? barSize = null)
+    {
+        return -((barSize ?? BarSize).y + LabelBarGap);
+    }
 
     public static readonly Color BackBarTint = new Color(0.72f, 0.80f, 0.92f, 0.42f);
     public static readonly Color BackBarFallback = new Color(0.16f, 0.22f, 0.32f, 0.82f);
@@ -184,13 +199,13 @@ public static class HudBarVisualStyle
     public static readonly Color BlueFillTint = new Color(0.42f, 0.72f, 1f, 1f);
 
     public static Vector2 ComputeExpBarAnchoredPosition(
-        float labelHeight,
-        float labelBarGap,
+        float labelHeight = LabelHeight,
+        float labelBarGap = LabelBarGap,
         Vector2? healthAnchoredPosition = null,
         Vector2? healthBarSize = null)
     {
         Vector2 healthPos = healthAnchoredPosition ?? HealthAnchoredPosition;
-        float healthHeight = (healthBarSize ?? BarSize).y;
+        float healthHeight = (healthBarSize ?? BarSize).y + labelBarGap + labelHeight;
         float healthBottom = healthPos.y - healthHeight;
         return new Vector2(healthPos.x, healthBottom - BarStackGap);
     }

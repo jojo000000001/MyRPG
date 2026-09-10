@@ -45,11 +45,11 @@ public static class CreateFiveNewConsumableItems
 
     private static readonly ConsumableDef[] Definitions =
     {
-        new("consumable_poison_vial.png", "Consumer_PoisonVial", 116, "Poison Vial", "A toxic brew that clears mental fog.", ItemPropertyType.MentalValue, 35),
-        new("consumable_life_crystal.png", "Consumer_LifeCrystal", 117, "Life Crystal", "A radiant crystal that restores HP.", ItemPropertyType.HPValue, 90),
-        new("consumable_energy_bar.png", "Consumer_EnergyBar", 118, "Energy Bar", "A quick snack that restores energy.", ItemPropertyType.EnergyValue, 35),
-        new("consumable_smoke_bomb.png", "Consumer_SmokeBomb", 119, "Smoke Bomb", "A smoke bomb that boosts escape speed.", ItemPropertyType.SpeedValue, 30),
-        new("consumable_thunder_stone.png", "Consumer_ThunderStone", 120, "Thunder Stone", "A charged stone that empowers attacks.", ItemPropertyType.AttackValue, 35),
+        new("consumable_poison_vial.png", "Consumer_PoisonVial", 116, "毒瓶", "毒性药剂，能驱散精神迷雾。", ItemPropertyType.MentalValue, 35),
+        new("consumable_life_crystal.png", "Consumer_LifeCrystal", 117, "生命水晶", "闪耀的水晶，能永久提升生命上限。", ItemPropertyType.MaxHPValue, 15),
+        new("consumable_energy_bar.png", "Consumer_EnergyBar", 118, "能量条", "便于携带的点心，能迅速恢复精力。", ItemPropertyType.EnergyValue, 35),
+        new("consumable_smoke_bomb.png", "Consumer_SmokeBomb", 119, "烟雾弹", "能提升逃脱速度的烟雾弹。", ItemPropertyType.SpeedValue, 30),
+        new("consumable_thunder_stone.png", "Consumer_ThunderStone", 120, "雷石", "蕴藏雷能的石头，能增强攻击。", ItemPropertyType.AttackValue, 35),
     };
 
     [MenuItem("Tools/Items/Create 5 New Consumable ItemSOs")]

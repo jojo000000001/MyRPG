@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,6 +8,8 @@ using UnityEngine.UI;
 public sealed class PlayerHealthBar : MonoBehaviour
 {
     private const string RootName = "PlayerHealthBarRoot";
+    private const string BarAreaName = "BarArea";
+    private const string HpTextName = "HpText";
     private const string TrackPlateName = "TrackPlate";
     private const string BackName = "Back";
 
@@ -14,7 +17,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
     [SerializeField] private Player player;
     [SerializeField] private HealthBarSpriteCatalog spriteCatalog;
 
-    private const int HudLayoutVersion = 2;
+    private const int HudLayoutVersion = 4;
 
     [Header("Layout")]
     [SerializeField] private Vector2 anchoredPosition = HudBarVisualStyle.HealthAnchoredPosition;
@@ -28,6 +31,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     [Header("Display")]
     [SerializeField] private float smoothSpeed = 14f;
+    [SerializeField] private Color hpTextColor = HudBarVisualStyle.ValueTextColor;
 
     internal HealthBarSpriteCatalog SpriteCatalog => spriteCatalog;
     internal Vector2 HudAnchoredPosition => anchoredPosition;
@@ -38,6 +42,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
     private GraphicRaycaster graphicRaycaster;
     private RectTransform rootRect;
     private KenneyBarView barView;
+    private TextMeshProUGUI hpText;
     private float displayedHealth01 = 1f;
     private bool uiBuilt;
     private bool spritesReady;
@@ -78,7 +83,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         capWidth = HudBarVisualStyle.CapWidth;
         fillInset = HudBarVisualStyle.FillInset;
         useTrackPlate = false;
-        showBackTrack = false;
+        showBackTrack = true;
         hudLayoutVersion = HudLayoutVersion;
     }
 
@@ -108,6 +113,12 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
         UpdateImmediate();
         ApplySprites();
+    }
+
+    public void BindPlayer(Player target)
+    {
+        if (target != null)
+            player = target;
     }
 
     private void ResolvePlayer()
@@ -153,6 +164,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         }
 
         UpdateFill(displayedHealth01);
+        UpdateHpText();
     }
 
     private void EnsureUi()
@@ -255,6 +267,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
         rootRect = null;
         barView = null;
+        hpText = null;
         uiBuilt = false;
     }
 
@@ -266,7 +279,19 @@ public sealed class PlayerHealthBar : MonoBehaviour
 
     private bool HasExpectedBarParts()
     {
-        return KenneyBarView.HasExpectedParts(rootRect, showBackTrack);
+        if (rootRect == null || rootRect.Find(HpTextName) == null)
+            return false;
+
+        return KenneyBarView.HasExpectedParts(GetBarAreaRect(), showBackTrack);
+    }
+
+    private RectTransform GetBarAreaRect()
+    {
+        if (rootRect == null)
+            return null;
+
+        Transform barArea = rootRect.Find(BarAreaName);
+        return barArea as RectTransform ?? rootRect;
     }
 
     private void DestroyExistingRoot()
@@ -274,6 +299,7 @@ public sealed class PlayerHealthBar : MonoBehaviour
         GameObject oldRoot = rootRect.gameObject;
         rootRect = null;
         barView = null;
+        hpText = null;
         uiBuilt = false;
 
         if (Application.isPlaying)
@@ -287,22 +313,43 @@ public sealed class PlayerHealthBar : MonoBehaviour
         if (rootRect == null)
             return false;
 
-        if (rootRect.sizeDelta != barSize)
+        if (rootRect.sizeDelta != HudBarVisualStyle.LabeledRootSize(barSize))
             return true;
 
         if (hudLayoutVersion != HudLayoutVersion)
             return true;
 
-        if (!showBackTrack && rootRect.Find(BackName) != null)
+        if (rootRect.Find(BarAreaName) == null || rootRect.Find(HpTextName) == null)
             return true;
 
-        return !useTrackPlate && rootRect.Find(TrackPlateName) != null;
+        Transform backParent = rootRect.Find(BarAreaName) ?? rootRect;
+        if (!showBackTrack && backParent.Find(BackName) != null)
+            return true;
+
+        return !useTrackPlate && backParent.Find(TrackPlateName) != null;
     }
 
     private void CreateBar()
     {
-        barView = KenneyBarView.Create(transform, RootName, showBackTrack, useTrackPlate);
-        rootRect = barView.Root;
+        GameObject rootObject = new GameObject(RootName, typeof(RectTransform));
+        rootObject.transform.SetParent(transform, false);
+        rootRect = rootObject.GetComponent<RectTransform>();
+        barView = KenneyBarView.Create(rootRect, BarAreaName, showBackTrack, useTrackPlate);
+        hpText = CreateHpLabel(rootRect);
+    }
+
+    private TextMeshProUGUI CreateHpLabel(Transform parent)
+    {
+        GameObject labelObject = new GameObject(HpTextName, typeof(RectTransform), typeof(TextMeshProUGUI));
+        labelObject.transform.SetParent(parent, false);
+        TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
+        label.alignment = TextAlignmentOptions.Right;
+        ChineseUITmpFont.Apply(label, 16f, FontStyles.Bold);
+        label.color = hpTextColor;
+        label.raycastTarget = false;
+        label.outlineWidth = 0.22f;
+        label.outlineColor = new Color32(20, 12, 8, 220);
+        return label;
     }
 
     private void CacheBarParts()
@@ -310,7 +357,9 @@ public sealed class PlayerHealthBar : MonoBehaviour
         if (rootRect == null)
             return;
 
-        barView = KenneyBarView.Bind(rootRect, showBackTrack);
+        barView = KenneyBarView.Bind(GetBarAreaRect(), showBackTrack);
+        if (hpText == null)
+            hpText = rootRect.Find(HpTextName)?.GetComponent<TextMeshProUGUI>();
     }
 
     private void ApplyLayout()
@@ -322,9 +371,37 @@ public sealed class PlayerHealthBar : MonoBehaviour
         rootRect.anchorMax = new Vector2(0f, 1f);
         rootRect.pivot = new Vector2(0f, 1f);
         rootRect.anchoredPosition = anchoredPosition;
-        rootRect.sizeDelta = barSize;
+        rootRect.sizeDelta = HudBarVisualStyle.LabeledRootSize(barSize);
+
+        RectTransform barArea = GetBarAreaRect();
+        if (barArea != null && barArea != rootRect)
+        {
+            barArea.anchorMin = new Vector2(0f, 1f);
+            barArea.anchorMax = new Vector2(0f, 1f);
+            barArea.pivot = new Vector2(0f, 1f);
+            barArea.anchoredPosition = Vector2.zero;
+            barArea.sizeDelta = barSize;
+        }
 
         barView?.LayoutContents(barSize, capWidth, fillInset);
+        LayoutHpText();
+    }
+
+    private void LayoutHpText()
+    {
+        if (hpText == null)
+            hpText = rootRect != null ? rootRect.Find(HpTextName)?.GetComponent<TextMeshProUGUI>() : null;
+        if (hpText == null)
+            return;
+
+        RectTransform rect = hpText.rectTransform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(0f, HudBarVisualStyle.LabelAnchoredY(barSize));
+        rect.sizeDelta = new Vector2(0f, HudBarVisualStyle.LabelHeight);
+        hpText.alignment = TextAlignmentOptions.Right;
+        hpText.color = hpTextColor;
     }
 
     private void ApplySprites()
@@ -336,6 +413,19 @@ public sealed class PlayerHealthBar : MonoBehaviour
     {
         displayedHealth01 = GetHealth01();
         UpdateFill(displayedHealth01);
+        UpdateHpText();
+    }
+
+    private void UpdateHpText()
+    {
+        if (hpText == null)
+            return;
+
+        int current = player != null ? player.CurrentHp : 0;
+        int max = player != null ? player.MaxHp : 0;
+        int shield = player != null ? player.CurrentShieldDurability : 0;
+        int shieldMax = player != null ? player.MaxShieldDurability : 0;
+        hpText.text = current + " / " + max + "  盾 " + shield + "/" + shieldMax;
     }
 
     private float GetHealth01()

@@ -10,6 +10,7 @@ public static class InventoryUIPrefabBuilder
     private const string PrefabPath = "Assets/Prefabs/UI/InventoryUIRoot.prefab";
     private const string PanelSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_panel_fantasy.png";
     private const string SlotSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_slot_leather.png";
+    private const string StatRowSpritePath = "Assets/Art/UI/GeneratedInventory/ui_stat_row_leather.png";
     private const string ButtonSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_button_brown.png";
     private const string CloseIconSpritePath = "Assets/Art/UI/GeneratedInventory/ui_inventory_close_cross_brown.png";
 
@@ -84,7 +85,7 @@ public static class InventoryUIPrefabBuilder
         panelRect.sizeDelta = new Vector2(520f, 560f);
         ConfigureImage(panel.GetComponent<Image>(), panelSprite, Image.Type.Sliced, Color.white);
 
-        TextMeshProUGUI title = CreateText(panel, "Title", "Inventory", 34f, TextAlignmentOptions.Left);
+        TextMeshProUGUI title = CreateText(panel, "Title", "背包", 34f, TextAlignmentOptions.Left);
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
@@ -156,7 +157,7 @@ public static class InventoryUIPrefabBuilder
         SerializedObject serializedStats = new SerializedObject(statPanel);
         serializedStats.FindProperty("player").objectReferenceValue = player;
         serializedStats.FindProperty("panelSprite").objectReferenceValue = LoadSprite(PanelSpritePath);
-        serializedStats.FindProperty("rowSprite").objectReferenceValue = LoadSprite(SlotSpritePath);
+        serializedStats.FindProperty("rowSprite").objectReferenceValue = LoadSprite(StatRowSpritePath);
         serializedStats.FindProperty("followInventoryVisibility").boolValue = true;
         serializedStats.FindProperty("gapFromInventory").floatValue = 18f;
         serializedStats.ApplyModifiedPropertiesWithoutUndo();
@@ -243,8 +244,8 @@ public static class InventoryUIPrefabBuilder
         GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(TextMeshProUGUI));
         TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
         label.text = text;
-        label.fontSize = fontSize;
         label.alignment = alignment;
+        ChineseUITmpFont.Apply(label, fontSize);
         label.raycastTarget = false;
         return label;
     }

@@ -3,7 +3,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Central save-load entry point for menu continue, slot load, and in-game reload.
+/// 读档总入口：主菜单继续、槽位读取、游戏内 F9。
+/// 为了让世界单位按存档重建，读档会先加载目标场景，等生成完成后再套用数据。
 /// </summary>
 public static class SaveLoadService
 {
@@ -18,6 +19,9 @@ public static class SaveLoadService
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
+    /// <summary>
+    /// 玩法场景加载完后，如果带了读档/新游戏标记，就挂一个临时物体在下一帧处理。
+    /// </summary>
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         if (!scene.IsValid() || scene.name != GameplaySceneName)
@@ -38,6 +42,10 @@ public static class SaveLoadService
         host.StartCoroutine(LoadSlot(slotIndex));
     }
 
+    /// <summary>
+    /// 若当前还不是「刚载入目标场景、准备套用」的状态，就先切场景；
+    /// 切完后会再次进入这里，等营地刷怪后再 Apply。
+    /// </summary>
     public static IEnumerator LoadSlot(int slotIndex)
     {
         if (isLoading)
@@ -53,11 +61,13 @@ public static class SaveLoadService
                 yield break;
             }
 
+            string targetScene = string.IsNullOrEmpty(data.sceneName) ? GameplaySceneName : data.sceneName;
             string activeScene = SceneManager.GetActiveScene().name;
-            if (!string.IsNullOrEmpty(data.sceneName) && data.sceneName != activeScene)
+            bool applyingAfterSceneLoad = SaveSession.PendingLoadSlot == slotIndex && activeScene == targetScene;
+            if (!applyingAfterSceneLoad)
             {
                 SaveSession.BeginLoad(slotIndex);
-                SceneManager.LoadScene(data.sceneName);
+                SceneManager.LoadScene(targetScene);
                 yield break;
             }
 
@@ -84,7 +94,8 @@ public static class SaveLoadService
             }
 
             SavePositionApplier.Schedule(player, data);
-            SnapCameraToPlayer();
+            if (data.camera == null || !data.camera.hasLook)
+                SnapCameraToPlayer();
 
             Debug.Log(
                 $"SaveLoadService: Loaded slot {slotIndex + 1} at ({data.posX:F2}, {data.posY:F2}, {data.posZ:F2}). " +
@@ -103,11 +114,21 @@ public static class SaveLoadService
             rig.SnapToTarget();
     }
 
+    public static void SnapOpeningCameraToKnight()
+    {
+        ThirdPersonCameraRig rig = Object.FindObjectOfType<ThirdPersonCameraRig>();
+        if (rig != null)
+            rig.SnapLookAtKnight();
+    }
+
     private static Player ResolvePlayer()
     {
         return Player.Resolve();
     }
 
+    /// <summary>
+    /// 场景加载后的一次性跑者：处理新游戏出生，或把待读槽位套进场景。
+    /// </summary>
     private sealed class SceneLoadRunner : MonoBehaviour
     {
         private IEnumerator Start()
@@ -135,6 +156,7 @@ public static class SaveLoadService
             Destroy(gameObject);
         }
 
+        /// <summary>新游戏：清空背包、放到出生点、镜头对准犬骑士。</summary>
         private static IEnumerator ApplyNewGame()
         {
             yield return null;
@@ -155,7 +177,8 @@ public static class SaveLoadService
                     spawnPoint.ApplyTo(player);
             }
 
-            SnapCameraToPlayer();
+            SaveSession.MarkPlayTime(0f);
+            SnapOpeningCameraToKnight();
 
             AreaBgmZone[] zones = Object.FindObjectsOfType<AreaBgmZone>();
             for (int i = 0; i < zones.Length; i++)

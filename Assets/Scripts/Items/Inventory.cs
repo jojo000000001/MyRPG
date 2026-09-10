@@ -26,15 +26,20 @@ public sealed class InventoryEntry
 [DisallowMultipleComponent]
 public sealed class Inventory : MonoBehaviour
 {
+    public const int DefaultHotbarSize = 6;
+
     [SerializeField] private int capacity = 20;
     [SerializeField] private List<InventoryEntry> entries = new List<InventoryEntry>();
     [SerializeField] private int circularInsertCursor;
+    [SerializeField] private int[] hotbarItemIds = new int[DefaultHotbarSize];
 
     public event Action Changed;
 
     public int Capacity => Mathf.Max(1, capacity);
+    public int HotbarSize => Mathf.Max(1, hotbarItemIds != null ? hotbarItemIds.Length : DefaultHotbarSize);
     public IReadOnlyList<InventoryEntry> Entries => entries;
     public int OccupiedSlotCount => CountOccupiedSlots();
+    public int OccupiedBackpackSlotCount => CountOccupiedBackpackSlots();
 
     public bool AddItem(ItemSO item, int amount = 1, bool insertAtFront = false)
     {
@@ -43,23 +48,14 @@ public sealed class Inventory : MonoBehaviour
         if (item == null || amount <= 0)
             return false;
 
-        if (insertAtFront)
-            return TryInsertAtFront(item, amount);
+        bool added = insertAtFront
+            ? TryInsertAtFront(item, amount)
+            : TryAddSequential(item, amount);
 
-        InventoryEntry entry = FindEntry(item);
-        if (entry != null)
-        {
-            entry.Add(amount);
-            NotifyChanged();
-            return true;
-        }
-
-        int slotIndex = FindNextEmptySlotCircular();
-        if (slotIndex < 0)
+        if (!added)
             return false;
 
-        entries[slotIndex] = new InventoryEntry(item, amount);
-        circularInsertCursor = (slotIndex + 1) % Capacity;
+        TryAssignToFirstEmptyHotbar(item);
         NotifyChanged();
         return true;
     }
@@ -112,7 +108,7 @@ public sealed class Inventory : MonoBehaviour
             return false;
 
         InventoryEntry toEntry = entries[toIndex];
-        if (toEntry != null && toEntry.Item == fromEntry.Item)
+        if (toEntry != null && IsSameItem(toEntry.Item, fromEntry.Item))
         {
             toEntry.Add(fromEntry.Amount);
             entries[fromIndex] = null;
@@ -125,6 +121,41 @@ public sealed class Inventory : MonoBehaviour
 
         NotifyChanged();
         return true;
+    }
+
+    public int CountItem(ItemSO item)
+    {
+        InventoryEntry entry = FindEntry(item);
+        return entry != null && entry.Amount > 0 ? entry.Amount : 0;
+    }
+
+    public bool RemoveItem(ItemSO item, int amount = 1)
+    {
+        EnsureSlotCapacity();
+
+        if (item == null || amount <= 0)
+            return false;
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InventoryEntry entry = entries[i];
+            if (!IsSameItem(entry != null ? entry.Item : null, item) || entry.Amount < amount)
+                continue;
+
+            entry.Add(-amount);
+            if (entry.Amount <= 0)
+            {
+                ItemSO removedItem = entry.Item;
+                entries[i] = null;
+                ClearHotbarBindingsForItem(removedItem);
+                CompactEntriesFrom(i);
+            }
+
+            NotifyChanged();
+            return true;
+        }
+
+        return false;
     }
 
     public bool UseItemAt(int index, Player player)
@@ -152,11 +183,30 @@ public sealed class Inventory : MonoBehaviour
             return player.EquipWeapon(entry.Item);
         }
 
+        if (IsShieldItem(entry.Item))
+        {
+            if (player == null)
+                return false;
+
+            if (player.EquippedShield == entry.Item)
+            {
+                player.UnequipShield();
+                return true;
+            }
+
+            return player.EquipShield(entry.Item);
+        }
+
         ApplyItem(entry.Item, player);
+        ItemSO usedItem = entry.Item;
         entry.Add(-1);
 
         if (entry.Amount <= 0)
+        {
             entries[index] = null;
+            ClearHotbarBindingsForItem(usedItem);
+            CompactEntriesFrom(index);
+        }
 
         NotifyChanged();
         return true;
@@ -168,6 +218,9 @@ public sealed class Inventory : MonoBehaviour
         NotifyChanged();
     }
 
+    /// <summary>
+    /// 采集背包格子和快捷栏绑定。物品只存 id 与数量，图标从 ItemCatalog 还原。
+    /// </summary>
     public InventorySaveData CaptureSaveData()
     {
         EnsureSlotCapacity();
@@ -195,9 +248,13 @@ public sealed class Inventory : MonoBehaviour
             capacity = Capacity,
             circularInsertCursor = circularInsertCursor,
             slots = slots,
+            hotbarItemIds = CaptureHotbarItemIds(),
         };
     }
 
+    /// <summary>
+    /// 按存档格子还原背包。未知物品 id 会跳过并打警告。
+    /// </summary>
     public void ApplySaveData(InventorySaveData data, ItemCatalog itemCatalog)
     {
         if (data == null)
@@ -230,7 +287,165 @@ public sealed class Inventory : MonoBehaviour
         }
 
         circularInsertCursor = Mathf.Clamp(data.circularInsertCursor, 0, Capacity - 1);
+        ApplyHotbarItemIds(data.hotbarItemIds);
         NotifyChanged();
+    }
+
+    public int GetHotbarItemId(int slotIndex)
+    {
+        EnsureHotbarCapacity();
+        return IsValidHotbarIndex(slotIndex) ? hotbarItemIds[slotIndex] : 0;
+    }
+
+    public ItemSO GetHotbarItem(int slotIndex)
+    {
+        int itemId = GetHotbarItemId(slotIndex);
+        if (itemId <= 0)
+            return null;
+
+        ItemCatalog catalog = ItemCatalog.EnsureAvailable();
+        return catalog != null ? catalog.GetItem(itemId) : null;
+    }
+
+    public bool IsOnHotbar(ItemSO item)
+    {
+        return item != null && IsOnHotbar(item.id);
+    }
+
+    public bool IsOnHotbar(int itemId)
+    {
+        return IndexOfHotbarItemId(itemId) >= 0;
+    }
+
+    public void SetHotbarItem(int slotIndex, ItemSO item)
+    {
+        EnsureHotbarCapacity();
+        if (!IsValidHotbarIndex(slotIndex))
+            return;
+
+        int itemId = item != null && item.id > 0 ? item.id : 0;
+        if (itemId > 0)
+        {
+            int existing = IndexOfHotbarItemId(itemId);
+            if (existing >= 0 && existing != slotIndex)
+                hotbarItemIds[existing] = 0;
+        }
+
+        hotbarItemIds[slotIndex] = itemId;
+        NotifyChanged();
+    }
+
+    public void ClearHotbarSlot(int slotIndex)
+    {
+        SetHotbarItem(slotIndex, null);
+    }
+
+    private void ClearHotbarBindingsForItem(ItemSO item)
+    {
+        if (item == null || item.id <= 0)
+            return;
+
+        EnsureHotbarCapacity();
+        for (int i = 0; i < hotbarItemIds.Length; i++)
+        {
+            if (hotbarItemIds[i] == item.id)
+                hotbarItemIds[i] = 0;
+        }
+    }
+
+    public void FillEmptyHotbarFromInventory()
+    {
+        EnsureSlotCapacity();
+        EnsureHotbarCapacity();
+        if (!IsHotbarCompletelyEmpty())
+            return;
+
+        FillHotbarFromInventory(0, null);
+        NotifyChanged();
+    }
+
+    public int CountOf(ItemSO item)
+    {
+        EnsureSlotCapacity();
+        if (item == null)
+            return 0;
+
+        int total = 0;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InventoryEntry entry = entries[i];
+            if (IsSameItem(entry != null ? entry.Item : null, item))
+                total += Mathf.Max(0, entry.Amount);
+        }
+
+        return total;
+    }
+
+    public int CountOf(int itemId)
+    {
+        EnsureSlotCapacity();
+        if (itemId <= 0)
+            return 0;
+
+        int total = 0;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InventoryEntry entry = entries[i];
+            ItemSO item = entry != null ? entry.Item : null;
+            if (item == null || item.id != itemId || entry.Amount <= 0)
+                continue;
+
+            total += entry.Amount;
+        }
+
+        return total;
+    }
+
+    public int FindFirstIndex(ItemSO item)
+    {
+        EnsureSlotCapacity();
+        if (item == null)
+            return -1;
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InventoryEntry entry = entries[i];
+            if (IsSameItem(entry != null ? entry.Item : null, item) && entry.Amount > 0)
+                return i;
+        }
+
+        return -1;
+    }
+
+    public bool UseItem(ItemSO item, Player player)
+    {
+        int index = FindFirstIndex(item);
+        return index >= 0 && UseItemAt(index, player);
+    }
+
+    private void CompactEntriesFrom(int startIndex)
+    {
+        EnsureSlotCapacity();
+        if (startIndex < 0 || startIndex >= entries.Count)
+            return;
+
+        int writeIndex = startIndex;
+        for (int readIndex = startIndex; readIndex < entries.Count; readIndex++)
+        {
+            InventoryEntry entry = entries[readIndex];
+            if (!IsValidEntry(entry))
+                continue;
+
+            if (writeIndex != readIndex)
+            {
+                entries[writeIndex] = entry;
+                entries[readIndex] = null;
+            }
+
+            writeIndex++;
+        }
+
+        circularInsertCursor = writeIndex % Capacity;
     }
 
     private void ClearInternal()
@@ -250,7 +465,7 @@ public sealed class Inventory : MonoBehaviour
         for (int i = 0; i < entries.Count; i++)
         {
             InventoryEntry entry = entries[i];
-            if (entry != null && entry.Item == item)
+            if (IsSameItem(entry != null ? entry.Item : null, item))
                 return entry;
         }
 
@@ -269,10 +484,18 @@ public sealed class Inventory : MonoBehaviour
             && item.GetPropertyValue(ItemPropertyType.AttackValue) > 0;
     }
 
+    private static bool IsShieldItem(ItemSO item)
+    {
+        return item != null
+            && item.itemType == ItemType.Shield
+            && item.GetPropertyValue(ItemPropertyType.ShieldDurability) > 0;
+    }
+
     private void OnValidate()
     {
         capacity = Mathf.Max(1, capacity);
         EnsureSlotCapacity();
+        EnsureHotbarCapacity();
         circularInsertCursor = Mathf.Clamp(circularInsertCursor, 0, Capacity - 1);
 
         for (int i = 0; i < entries.Count; i++)
@@ -304,6 +527,157 @@ public sealed class Inventory : MonoBehaviour
             entries.RemoveAt(entries.Count - 1);
 
         circularInsertCursor = Mathf.Clamp(circularInsertCursor, 0, Capacity - 1);
+        EnsureHotbarCapacity();
+    }
+
+    private void EnsureHotbarCapacity()
+    {
+        if (hotbarItemIds == null || hotbarItemIds.Length != DefaultHotbarSize)
+        {
+            int[] resized = new int[DefaultHotbarSize];
+            if (hotbarItemIds != null)
+            {
+                int copyCount = Mathf.Min(hotbarItemIds.Length, DefaultHotbarSize);
+                for (int i = 0; i < copyCount; i++)
+                    resized[i] = hotbarItemIds[i];
+            }
+
+            hotbarItemIds = resized;
+        }
+    }
+
+    private int[] CaptureHotbarItemIds()
+    {
+        EnsureHotbarCapacity();
+        var copy = new int[HotbarSize];
+        for (int i = 0; i < copy.Length; i++)
+            copy[i] = hotbarItemIds[i];
+        return copy;
+    }
+
+    private void ApplyHotbarItemIds(int[] savedIds)
+    {
+        EnsureHotbarCapacity();
+        for (int i = 0; i < hotbarItemIds.Length; i++)
+            hotbarItemIds[i] = 0;
+
+        if (savedIds == null)
+            return;
+
+        int count = Mathf.Min(savedIds.Length, hotbarItemIds.Length);
+        for (int i = 0; i < count; i++)
+            hotbarItemIds[i] = Mathf.Max(0, savedIds[i]);
+    }
+
+    private bool IsHotbarCompletelyEmpty()
+    {
+        EnsureHotbarCapacity();
+        for (int i = 0; i < hotbarItemIds.Length; i++)
+        {
+            if (hotbarItemIds[i] > 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    private int IndexOfHotbarItemId(int itemId)
+    {
+        EnsureHotbarCapacity();
+        if (itemId <= 0)
+            return -1;
+
+        for (int i = 0; i < hotbarItemIds.Length; i++)
+        {
+            if (hotbarItemIds[i] == itemId)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private int FillHotbarFromInventory(int writeIndex, ItemType? itemType)
+    {
+        for (int i = 0; i < entries.Count && writeIndex < hotbarItemIds.Length; i++)
+        {
+            InventoryEntry entry = entries[i];
+            if (!IsValidEntry(entry) || entry.Item.id <= 0)
+                continue;
+
+            if (itemType.HasValue && entry.Item.itemType != itemType.Value)
+                continue;
+
+            if (IndexOfHotbarItemId(entry.Item.id) >= 0)
+                continue;
+
+            hotbarItemIds[writeIndex] = entry.Item.id;
+            writeIndex++;
+        }
+
+        return writeIndex;
+    }
+
+    private bool IsValidHotbarIndex(int index)
+    {
+        EnsureHotbarCapacity();
+        return index >= 0 && index < hotbarItemIds.Length;
+    }
+
+    private static bool IsSameItem(ItemSO left, ItemSO right)
+    {
+        if (left == null || right == null)
+            return false;
+
+        if (left == right)
+            return true;
+
+        return left.id > 0 && left.id == right.id;
+    }
+
+    private bool TryAddSequential(ItemSO item, int amount)
+    {
+        InventoryEntry entry = FindEntry(item);
+        if (entry != null)
+        {
+            entry.Add(amount);
+            return true;
+        }
+
+        int slotIndex = FindFirstEmptySlot();
+        if (slotIndex < 0)
+            return false;
+
+        entries[slotIndex] = new InventoryEntry(item, amount);
+        circularInsertCursor = (slotIndex + 1) % Capacity;
+        return true;
+    }
+
+    private void TryAssignToFirstEmptyHotbar(ItemSO item)
+    {
+        if (item == null || item.id <= 0)
+            return;
+
+        EnsureHotbarCapacity();
+        if (IsOnHotbar(item.id))
+            return;
+
+        int slotIndex = FindFirstEmptyHotbarSlot();
+        if (slotIndex < 0)
+            return;
+
+        hotbarItemIds[slotIndex] = item.id;
+    }
+
+    private int FindFirstEmptyHotbarSlot()
+    {
+        EnsureHotbarCapacity();
+        for (int i = 0; i < hotbarItemIds.Length; i++)
+        {
+            if (hotbarItemIds[i] <= 0)
+                return i;
+        }
+
+        return -1;
     }
 
     private bool TryInsertAtFront(ItemSO item, int amount)
@@ -313,7 +687,7 @@ public sealed class Inventory : MonoBehaviour
         for (int i = 0; i < orderedEntries.Count; i++)
         {
             InventoryEntry entry = orderedEntries[i];
-            if (entry.Item != item)
+            if (!IsSameItem(entry.Item, item))
                 continue;
 
             entry.Add(amount);
@@ -324,7 +698,6 @@ public sealed class Inventory : MonoBehaviour
             }
 
             WriteOrderedEntries(orderedEntries);
-            NotifyChanged();
             return true;
         }
 
@@ -333,7 +706,6 @@ public sealed class Inventory : MonoBehaviour
 
         orderedEntries.Insert(0, new InventoryEntry(item, amount));
         WriteOrderedEntries(orderedEntries);
-        NotifyChanged();
         return true;
     }
 
@@ -357,17 +729,16 @@ public sealed class Inventory : MonoBehaviour
         circularInsertCursor = orderedEntries.Count % Capacity;
     }
 
-    private int FindNextEmptySlotCircular()
+    private int FindFirstEmptySlot()
     {
         EnsureSlotCapacity();
 
-        for (int offset = 0; offset < entries.Count; offset++)
+        for (int i = 0; i < entries.Count; i++)
         {
-            int index = (circularInsertCursor + offset) % entries.Count;
-            if (!IsValidEntry(entries[index]))
+            if (!IsValidEntry(entries[i]))
             {
-                entries[index] = null;
-                return index;
+                entries[i] = null;
+                return i;
             }
         }
 
@@ -393,6 +764,23 @@ public sealed class Inventory : MonoBehaviour
         {
             if (IsValidEntry(entries[i]))
                 occupied++;
+        }
+
+        return occupied;
+    }
+
+    private int CountOccupiedBackpackSlots()
+    {
+        EnsureSlotCapacity();
+
+        int occupied = 0;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InventoryEntry entry = entries[i];
+            if (!IsValidEntry(entry) || IsOnHotbar(entry.Item))
+                continue;
+
+            occupied++;
         }
 
         return occupied;

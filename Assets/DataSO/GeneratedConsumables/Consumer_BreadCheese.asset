@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_BreadCheese
   m_EditorClassIdentifier: 
   id: 105
-  name: Bread and Cheese
+  name: 面包与奶酪
   itemType: 1
-  description: Simple food that restores a little HP.
+  description: 简单的食物，能稍微恢复生命。
   propertyList:
   - PropertyType: 0
     Value: 30

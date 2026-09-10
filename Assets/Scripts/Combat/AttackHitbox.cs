@@ -255,6 +255,7 @@ public class AttackHitbox : MonoBehaviour
         hitTargets.Add(hurtbox);
         PlayImpactOnce();
         TryApplyLifeSteal(finalDamage);
+        transform.root.GetComponent<Player>()?.NotifyCombat();
 
         if (closeAfterFirstHit)
             CloseHitbox();

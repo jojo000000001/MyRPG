@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_Mushroom
   m_EditorClassIdentifier: 
   id: 3
-  name: Mushroom01
+  name: 蘑菇
   itemType: 1
-  description: 
+  description: 林间采来的蘑菇，能稍微恢复生命、精力和精神。
   propertyList:
   - PropertyType: 0
     Value: 30

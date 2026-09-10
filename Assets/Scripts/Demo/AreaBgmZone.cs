@@ -77,10 +77,12 @@ public sealed class AreaBgmZone : MonoBehaviour
     private void OnEnable()
     {
         nextCheckTime = 0f;
+        playerInside = false;
     }
 
     private void Start()
     {
+        playerInside = false;
         UpdatePlayerPresence();
     }
 
@@ -134,6 +136,9 @@ public sealed class AreaBgmZone : MonoBehaviour
             return;
 
         playerInside = true;
+        if (!Application.isPlaying)
+            return;
+
         BgmManager.NotifyAreaEntered(areaKind);
     }
 
@@ -143,6 +148,9 @@ public sealed class AreaBgmZone : MonoBehaviour
             return;
 
         playerInside = false;
+        if (!Application.isPlaying)
+            return;
+
         BgmManager.NotifyAreaExited(areaKind);
     }
 
@@ -221,7 +229,35 @@ public sealed class AreaBgmZone : MonoBehaviour
                 $"{areaKind} BGM\n{zoneHalfExtents.x * 2f:0.#} x {zoneHalfExtents.y * 2f:0.#}");
         }
     }
+#endif
 
+    /// <summary>
+    /// 区域边界上朝向指定点的位置，用于在森林边缘放怪。
+    /// </summary>
+    public Vector3 GetPerimeterPointToward(Vector3 worldPosition)
+    {
+        Vector3 toTarget = worldPosition - zoneCenter;
+        toTarget.y = 0f;
+        if (toTarget.sqrMagnitude < 0.0001f)
+            toTarget = Vector3.back;
+
+        Vector3 point;
+        if (UsesRectangle)
+        {
+            float scaleX = zoneHalfExtents.x / Mathf.Max(0.001f, Mathf.Abs(toTarget.x));
+            float scaleZ = zoneHalfExtents.y / Mathf.Max(0.001f, Mathf.Abs(toTarget.z));
+            point = zoneCenter + toTarget * Mathf.Min(scaleX, scaleZ);
+        }
+        else
+        {
+            point = zoneCenter + toTarget.normalized * zoneRadius;
+        }
+
+        point.y = zoneCenter.y;
+        return point;
+    }
+
+#if UNITY_EDITOR
     public Vector3[] GetRectangleCorners()
     {
         float hx = zoneHalfExtents.x;

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_SparkDust
   m_EditorClassIdentifier: 
   id: 129
-  name: Spark Dust
+  name: 火花尘
   itemType: 1
-  description: Crackling dust that restores energy.
+  description: 噼啪作响的粉尘，能恢复精力。
   propertyList:
   - PropertyType: 1
     Value: 45

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_RoastMeat
   m_EditorClassIdentifier: 
   id: 107
-  name: Roast Meat
+  name: 烤肉串
   itemType: 1
-  description: Grilled meat skewer that restores HP.
+  description: 烤过的肉串，能恢复生命。
   propertyList:
   - PropertyType: 0
     Value: 80

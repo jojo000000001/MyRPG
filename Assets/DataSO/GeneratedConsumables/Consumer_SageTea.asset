@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_SageTea
   m_EditorClassIdentifier: 
   id: 128
-  name: Sage Tea
+  name: 鼠尾草茶
   itemType: 1
-  description: Herbal tea that clears mental fatigue.
+  description: 草本茶饮，能消除精神疲劳。
   propertyList:
   - PropertyType: 2
     Value: 40

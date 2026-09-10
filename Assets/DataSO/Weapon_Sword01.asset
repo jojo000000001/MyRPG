@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Weapon_Sword01
   m_EditorClassIdentifier: 
   id: 1
-  name: Sword01
+  name: 炎龙剑
   itemType: 0
-  description: 
+  description: 传说中以炎龙之息淬炼的长剑，锋锐无比。
   propertyList:
   - PropertyType: 4
     Value: 30

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d4b6a78efc49f42a0e783027633d3a, type: 3}
+  m_Name: Shield_Steel
+  m_EditorClassIdentifier: 
+  id: 7
+  name: "\u7CBE\u94A2\u9E22\u76FE"
+  itemType: 2
+  description: "\u7CBE\u94C1\u6253\u9020\u7684\u9E22\u5F62\u76FE\uFF0C\u683C\u6321\u8010\u4E45\u66F4\u9AD8\u3002"
+  propertyList:
+  - PropertyType: 6
+    Value: 120
+  icon: {fileID: 21300000, guid: 80fcae6067ea930439475785473081a4, type: 3}
+  prefab: {fileID: 670289497299194404, guid: 412fdf0d68b3dcb41bae3545ceec8735, type: 3}

@@ -19,6 +19,13 @@ public sealed class DemoGameManager : MonoBehaviour
     private bool gameEnded;
 
     public bool IsPlaying => !gameEnded;
+    public bool HasEnded => gameEnded;
+
+    /// <summary>读档还原 Demo 是否已经分出胜负，避免胜利/失败界面再弹一次。</summary>
+    public void RestoreEnded(bool ended)
+    {
+        gameEnded = ended;
+    }
 
     private void Awake()
     {
@@ -45,6 +52,9 @@ public sealed class DemoGameManager : MonoBehaviour
         if (flowUI == null)
             flowUI = GetComponent<DemoFlowUI>();
 
+        if (flowUI == null)
+            flowUI = FindObjectOfType<DemoFlowUI>();
+
         if (player != null)
             player.Died += OnPlayerDied;
     }
@@ -67,6 +77,9 @@ public sealed class DemoGameManager : MonoBehaviour
             return;
 
         enemiesKilled++;
+
+        if (QuestManager.Instance != null && QuestManager.Instance.BlocksDemoVictory)
+            return;
 
         int goal = Mathf.Max(killsToWin, enemiesTotal);
         if (enemiesKilled >= goal)

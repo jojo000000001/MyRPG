@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_SwiftnessElixir
   m_EditorClassIdentifier: 
   id: 113
-  name: Swiftness Elixir
+  name: 迅捷药剂
   itemType: 1
-  description: A quick sip that boosts movement speed.
+  description: 喝下后能提升移动速度。
   propertyList:
   - PropertyType: 3
     Value: 10

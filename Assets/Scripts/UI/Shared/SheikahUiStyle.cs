@@ -60,6 +60,50 @@ public static class SheikahUiStyle
         return card;
     }
 
+    public static void EnsureCardChrome(Transform card, float pixelsPerUnitMultiplier = 2.4f)
+    {
+        if (card == null)
+            return;
+
+        Image rootImage = card.GetComponent<Image>();
+        if (rootImage != null)
+            rootImage.enabled = false;
+
+        Transform background = card.Find("Background");
+        if (background == null)
+        {
+            Image fill = CreateChild(card, "Background", typeof(Image)).GetComponent<Image>();
+            Stretch(fill.rectTransform);
+            fill.sprite = null;
+            fill.type = Image.Type.Simple;
+            fill.color = Fill;
+            fill.raycastTarget = true;
+            fill.transform.SetAsFirstSibling();
+        }
+
+        Transform frame = card.Find("Frame");
+        if (frame == null)
+        {
+            Image frameImage = CreateChild(card, "Frame", typeof(Image)).GetComponent<Image>();
+            Stretch(frameImage.rectTransform);
+            ApplySliced(frameImage, PanelSprite, Color.white, pixelsPerUnitMultiplier);
+            frameImage.raycastTarget = false;
+            frameImage.transform.SetSiblingIndex(1);
+        }
+    }
+
+    public static void PlaceCentered(RectTransform rect, float anchorY, Vector2 size)
+    {
+        if (rect == null)
+            return;
+
+        rect.anchorMin = new Vector2(0.5f, anchorY);
+        rect.anchorMax = new Vector2(0.5f, anchorY);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+    }
+
     public static Button CreateButton(
         Transform parent,
         string name,

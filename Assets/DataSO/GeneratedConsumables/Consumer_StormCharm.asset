@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_StormCharm
   m_EditorClassIdentifier: 
   id: 134
-  name: Storm Charm
+  name: 风暴护符
   itemType: 1
-  description: A charged charm for speed and power.
+  description: 蕴藏雷能的护符，能提升速度与力量。
   propertyList:
   - PropertyType: 3
     Value: 10

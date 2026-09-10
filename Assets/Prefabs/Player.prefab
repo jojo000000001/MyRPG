@@ -2925,6 +2925,8 @@ MonoBehaviour:
   critDamageMultiplier: 1.5
   lifeStealPercent: 0.02
   equippedWeapon: {fileID: 0}
+  equippedShield: {fileID: 0}
+  rupees: 80
   enableHitFeedback: 1
   hitTriggerParam: Hit
   hitBoolParam: 
@@ -2939,10 +2941,11 @@ MonoBehaviour:
   attackFaceTurnSpeed: 720
   attackYawOffset: 0
   assistCameraBehindOnAttack: 1
+  attackAssistSwitchMargin: 1.25
   moveSpeed: 3
   rotateSpeed: 8
   gravity: -10
-  jumpHeight: 2
+  jumpHeight: 1.15
   jumpBufferTime: 0.12
   coyoteTime: 0.1
   fallGravityMultiplier: 1.8
@@ -2957,6 +2960,23 @@ MonoBehaviour:
   inputBufferTime: 0.1
   accelerationTime: 0.08
   decelerationTime: 0.12
+  sprintKey: 304
+  sprintSpeedMultiplier: 1.6
+  dodgeMouseButton: 1
+  dodgeDistance: 5
+  dodgeDuration: 0.28
+  dodgeCooldown: 0.7
+  dodgeInvulnSeconds: 0.28
+  dodgePassThroughMonsters: 1
+  enablePerfectDodge: 1
+  perfectDodgeWindowSeconds: 0.18
+  perfectDodgeDamageBonusPercent: 50
+  perfectDodgeBuffDuration: 3.5
+  shieldKey: 101
+  maxShieldDurability: 60
+  shieldMoveSpeedMultiplier: 0.45
+  shieldRegenPerSecond: 8
+  shieldRegenDelay: 5
   comboWindow: 0.8
   attackInputMinInterval: 0.1
   attackInputBufferTime: 0.22
@@ -3067,7 +3087,88 @@ MonoBehaviour:
     amount: 1
   - item: {fileID: 11400000, guid: 363062a5ebd91004e92eb6dff4bb0880, type: 2}
     amount: 1
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
+  - item: {fileID: 0}
+    amount: 0
   circularInsertCursor: 0
+  hotbarItemIds: 000000000000000000000000000000000000000000000000
 --- !u!114 &659960436058308672
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3089,6 +3190,12 @@ MonoBehaviour:
   weaponLocalPosition: {x: 0, y: 0, z: 0}
   weaponLocalEulerAngles: {x: 0, y: 0, z: 0}
   weaponLocalScale: {x: 1, y: 1, z: 1}
+  shieldSocket: {fileID: 7519870990573717155}
+  shieldAttachmentBone: 17
+  shieldSocketName: weapon_l
+  shieldLocalPosition: {x: 0, y: 0, z: 0}
+  shieldLocalEulerAngles: {x: 0, y: -90, z: -90}
+  shieldLocalScale: {x: 1, y: 1, z: 1}
 --- !u!114 &770001
 MonoBehaviour:
   m_ObjectHideFlags: 0

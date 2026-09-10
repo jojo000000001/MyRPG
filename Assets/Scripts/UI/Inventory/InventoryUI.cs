@@ -40,6 +40,7 @@ public sealed class InventoryUI : MonoBehaviour
     [SerializeField] private int scrollRowsPerWheelStep = 1;
 
     private readonly List<SlotView> slots = new List<SlotView>();
+    private readonly List<int> backpackViewIndices = new List<int>(80);
     private readonly CircularQueue<int> visibleSlotIndices = new CircularQueue<int>(20);
     private RectTransform rootRect;
     private GameObject panelObject;
@@ -64,6 +65,7 @@ public sealed class InventoryUI : MonoBehaviour
     private int lastOccupiedSlotCount = -1;
 
     public int VisibleSlotCount => Mathf.Max(1, columns * rows);
+    public bool IsOpen => isOpen;
 
     private sealed class SlotView
     {
@@ -104,8 +106,17 @@ public sealed class InventoryUI : MonoBehaviour
 
     private void Update()
     {
+        if (DialogueUI.IsOpen || ShopUI.IsOpen)
+            return;
+
         if (Input.GetKeyDown(toggleKey) || Input.GetKeyDown(alternateToggleKey))
             SetOpen(!isOpen);
+
+        if (isOpen && GameplayPauseMenu.TryConsumeEscape())
+        {
+            SetOpen(false);
+            return;
+        }
 
         if (!isOpen)
             return;
@@ -194,7 +205,7 @@ public sealed class InventoryUI : MonoBehaviour
 
         if (inventory != null)
         {
-            int occupiedCount = inventory.OccupiedSlotCount;
+            int occupiedCount = inventory.OccupiedBackpackSlotCount;
             if (lastOccupiedSlotCount >= 0 && occupiedCount > lastOccupiedSlotCount)
                 viewOffset = 0;
 
@@ -202,6 +213,13 @@ public sealed class InventoryUI : MonoBehaviour
         }
 
         RebuildVisibleQueue();
+        if (inventory != null && selectedPhysicalIndex >= 0)
+        {
+            InventoryEntry selected = inventory.GetEntryAt(selectedPhysicalIndex);
+            if (selected != null && selected.Item != null && inventory.IsOnHotbar(selected.Item))
+                selectedPhysicalIndex = -1;
+        }
+
         selectedSlotIndex = FindUiIndexForPhysical(selectedPhysicalIndex);
 
         for (int i = 0; i < slots.Count; i++)
@@ -348,6 +366,15 @@ public sealed class InventoryUI : MonoBehaviour
         panelRect = panel as RectTransform;
         gridRect = panel.Find(GridName) as RectTransform;
         detailText = GetComponentInChild<TextMeshProUGUI>(panel, DetailName);
+        if (detailText != null)
+            ChineseUITmpFont.Apply(detailText, detailText.fontSize);
+
+        TextMeshProUGUI title = GetComponentInChild<TextMeshProUGUI>(panel, "Title");
+        if (title != null)
+        {
+            title.text = "背包";
+            ChineseUITmpFont.Apply(title, title.fontSize, FontStyles.Bold);
+        }
 
         Transform drag = transform.Find(DragIconName);
         dragIconRect = drag as RectTransform;
@@ -374,7 +401,7 @@ public sealed class InventoryUI : MonoBehaviour
         panelImage.type = panelSprite != null ? Image.Type.Sliced : Image.Type.Simple;
         panelImage.color = panelSprite != null ? Color.white : new Color(0.25f, 0.16f, 0.1f, 0.96f);
 
-        TextMeshProUGUI title = CreateText(panelObject, "Title", "Inventory", 34f, TextAlignmentOptions.Left);
+        TextMeshProUGUI title = CreateText(panelObject, "Title", "背包", 34f, TextAlignmentOptions.Left);
         RectTransform titleRect = title.rectTransform;
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
@@ -609,6 +636,22 @@ public sealed class InventoryUI : MonoBehaviour
 
     private void DropDraggedItem(int targetUiIndex)
     {
+        ItemSO draggedItem = null;
+        if (inventory != null && dragPhysicalSourceIndex >= 0)
+        {
+            InventoryEntry source = inventory.GetEntryAt(dragPhysicalSourceIndex);
+            draggedItem = source != null ? source.Item : null;
+        }
+
+        PlayerHUD hud = PlayerHUD.Resolve();
+        PlayerHotbar hotbar = hud != null ? hud.Hotbar : null;
+        if (draggedItem != null && hotbar != null && hotbar.TryAssignAtScreenPoint(Input.mousePosition, draggedItem))
+        {
+            ClearDrag();
+            Refresh();
+            return;
+        }
+
         int physicalTarget = GetPhysicalIndex(targetUiIndex);
         if (inventory != null && dragPhysicalSourceIndex >= 0 && physicalTarget >= 0)
         {
@@ -667,8 +710,9 @@ public sealed class InventoryUI : MonoBehaviour
         if (Mathf.Approximately(scroll, 0f))
             return;
 
+        RebuildBackpackViewIndices();
         int step = columns * Mathf.Max(1, scrollRowsPerWheelStep);
-        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        int maxOffset = GetBackpackMaxOffset();
 
         if (scroll > 0f)
             viewOffset = Mathf.Max(0, viewOffset - step);
@@ -753,14 +797,14 @@ public sealed class InventoryUI : MonoBehaviour
         if (scrollBar == null)
             return;
 
-        bool canScroll = inventory != null && inventory.Capacity > VisibleSlotCount;
+        bool canScroll = GetBackpackViewCount() > VisibleSlotCount;
         scrollBar.gameObject.SetActive(canScroll);
         if (!canScroll)
             return;
 
-        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        int maxOffset = GetBackpackMaxOffset();
         float normalized = maxOffset > 0 ? 1f - (float)viewOffset / maxOffset : 1f;
-        float handleSize = Mathf.Clamp01((float)VisibleSlotCount / inventory.Capacity);
+        float handleSize = Mathf.Clamp01((float)VisibleSlotCount / Mathf.Max(1, GetBackpackViewCount()));
 
         isSyncingScrollBar = true;
         scrollBar.size = handleSize;
@@ -773,7 +817,8 @@ public sealed class InventoryUI : MonoBehaviour
         if (isSyncingScrollBar || inventory == null)
             return;
 
-        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
+        RebuildBackpackViewIndices();
+        int maxOffset = GetBackpackMaxOffset();
         viewOffset = maxOffset - Mathf.RoundToInt(value * maxOffset);
         viewOffset = Mathf.Clamp(viewOffset, 0, maxOffset);
         Refresh();
@@ -785,29 +830,41 @@ public sealed class InventoryUI : MonoBehaviour
             visibleSlotIndices.Reset(VisibleSlotCount);
 
         visibleSlotIndices.Clear();
-        ClampViewOffset();
-
-        if (inventory == null)
-            return;
+        RebuildBackpackViewIndices();
+        viewOffset = Mathf.Clamp(viewOffset, 0, GetBackpackMaxOffset());
 
         for (int i = 0; i < VisibleSlotCount; i++)
         {
-            int physicalIndex = viewOffset + i;
-            if (physicalIndex < inventory.Capacity)
-                visibleSlotIndices.TryEnqueue(physicalIndex);
+            int packedIndex = viewOffset + i;
+            if (packedIndex < backpackViewIndices.Count)
+                visibleSlotIndices.TryEnqueue(backpackViewIndices[packedIndex]);
         }
     }
 
-    private void ClampViewOffset()
+    private void RebuildBackpackViewIndices()
     {
+        backpackViewIndices.Clear();
         if (inventory == null)
-        {
-            viewOffset = 0;
             return;
-        }
 
-        int maxOffset = Mathf.Max(0, inventory.Capacity - VisibleSlotCount);
-        viewOffset = Mathf.Clamp(viewOffset, 0, maxOffset);
+        for (int i = 0; i < inventory.Capacity; i++)
+        {
+            InventoryEntry entry = inventory.GetEntryAt(i);
+            if (entry != null && entry.Item != null && entry.Amount > 0 && inventory.IsOnHotbar(entry.Item))
+                continue;
+
+            backpackViewIndices.Add(i);
+        }
+    }
+
+    private int GetBackpackViewCount()
+    {
+        return backpackViewIndices.Count;
+    }
+
+    private int GetBackpackMaxOffset()
+    {
+        return Mathf.Max(0, GetBackpackViewCount() - VisibleSlotCount);
     }
 
     private int GetPhysicalIndex(int uiIndex)
@@ -858,7 +915,7 @@ public sealed class InventoryUI : MonoBehaviour
         ItemSO item = entry != null ? entry.Item : null;
         if (item == null || entry.Amount <= 0)
         {
-            builder.Append("Empty");
+            builder.Append("空");
         }
         else
         {
@@ -867,16 +924,18 @@ public sealed class InventoryUI : MonoBehaviour
             builder.Append(entry.Amount);
 
             if (IsEquipped(item))
-                builder.Append("  Equipped");
+                builder.Append("  已装备");
 
             builder.AppendLine();
-            builder.Append(item.itemType == ItemType.Weapon ? "Weapon" : "Consumable");
+            builder.Append(ItemSO.GetItemTypeDisplayName(item.itemType));
 
-            AppendPropertyLine(builder, item, ItemPropertyType.AttackValue, "Attack");
-            AppendPropertyLine(builder, item, ItemPropertyType.HPValue, "HP");
-            AppendPropertyLine(builder, item, ItemPropertyType.EnergyValue, "Energy");
-            AppendPropertyLine(builder, item, ItemPropertyType.MentalValue, "Mental");
-            AppendPropertyLine(builder, item, ItemPropertyType.SpeedValue, "Speed");
+            AppendPropertyLine(builder, item, ItemPropertyType.AttackValue, "攻击");
+            AppendPropertyLine(builder, item, ItemPropertyType.ShieldDurability, "盾牌耐久");
+            AppendPropertyLine(builder, item, ItemPropertyType.HPValue, "生命");
+            AppendPropertyLine(builder, item, ItemPropertyType.MaxHPValue, "生命上限");
+            AppendPropertyLine(builder, item, ItemPropertyType.EnergyValue, "精力");
+            AppendPropertyLine(builder, item, ItemPropertyType.MentalValue, "精神");
+            AppendPropertyLine(builder, item, ItemPropertyType.SpeedValue, "速度");
 
             if (!string.IsNullOrEmpty(item.description))
             {
@@ -903,12 +962,13 @@ public sealed class InventoryUI : MonoBehaviour
         builder.Append(visibleEnd);
         builder.Append(" / ");
         builder.Append(inventory.Capacity);
-        builder.Append("  (scroll wheel)");
+        builder.Append("  （滚轮翻页）");
     }
 
     private bool IsEquipped(ItemSO item)
     {
-        return player != null && player.EquippedWeapon == item;
+        return player != null
+            && (player.EquippedWeapon == item || player.EquippedShield == item);
     }
 
     private static string BuildSlotMarker(InventoryEntry entry, bool equipped, bool hiddenByDrag)
@@ -946,8 +1006,8 @@ public sealed class InventoryUI : MonoBehaviour
         GameObject textObject = CreateChild(parent, name, typeof(RectTransform), typeof(TextMeshProUGUI));
         TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
         label.text = text;
-        label.fontSize = fontSize;
         label.alignment = alignment;
+        ChineseUITmpFont.Apply(label, fontSize);
         label.raycastTarget = false;
         return label;
     }

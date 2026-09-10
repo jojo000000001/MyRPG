@@ -47,16 +47,16 @@ public static class CreateTenConsumableItems
 
     private static readonly ConsumableDef[] Definitions =
     {
-        new("consumable_moon_elixir.png", "Consumer_MoonElixir", 126, "Moon Elixir", "A lunar brew that restores plenty of HP.", ItemPropertyType.HPValue, 75),
-        new("consumable_rage_potion.png", "Consumer_RagePotion", 127, "Rage Potion", "A fierce potion that empowers attacks.", ItemPropertyType.AttackValue, 32),
-        new("consumable_sage_tea.png", "Consumer_SageTea", 128, "Sage Tea", "Herbal tea that clears mental fatigue.", ItemPropertyType.MentalValue, 40),
-        new("consumable_spark_dust.png", "Consumer_SparkDust", 129, "Spark Dust", "Crackling dust that restores energy.", ItemPropertyType.EnergyValue, 45),
-        new("consumable_shadow_vial.png", "Consumer_ShadowVial", 130, "Shadow Vial", "A dark brew that boosts escape speed.", ItemPropertyType.SpeedValue, 18),
-        new("consumable_iron_root.png", "Consumer_IronRoot", 131, "Iron Root", "A tough root that restores HP and strength.", ItemPropertyType.HPValue, 40, ItemPropertyType.AttackValue, 10),
-        new("consumable_pearl_soup.png", "Consumer_PearlSoup", 132, "Pearl Soup", "A soothing soup for body and mind.", ItemPropertyType.HPValue, 50, ItemPropertyType.MentalValue, 15),
-        new("consumable_flame_orchid.png", "Consumer_FlameOrchid", 133, "Flame Orchid", "A fiery flower that boosts attack and energy.", ItemPropertyType.AttackValue, 22, ItemPropertyType.EnergyValue, 10),
-        new("consumable_storm_charm.png", "Consumer_StormCharm", 134, "Storm Charm", "A charged charm for speed and power.", ItemPropertyType.SpeedValue, 10, ItemPropertyType.AttackValue, 15),
-        new("consumable_holy_water.png", "Consumer_HolyWater", 135, "Holy Water", "Blessed water that heals body and spirit.", ItemPropertyType.HPValue, 60, ItemPropertyType.MentalValue, 20),
+        new("consumable_moon_elixir.png", "Consumer_MoonElixir", 126, "月华药剂", "月下酿成的药剂，能恢复大量生命。", ItemPropertyType.HPValue, 75),
+        new("consumable_rage_potion.png", "Consumer_RagePotion", 127, "狂怒药水", "猛烈的药水，能大幅增强攻击。", ItemPropertyType.AttackValue, 32),
+        new("consumable_sage_tea.png", "Consumer_SageTea", 128, "鼠尾草茶", "草本茶饮，能消除精神疲劳。", ItemPropertyType.MentalValue, 40),
+        new("consumable_spark_dust.png", "Consumer_SparkDust", 129, "火花尘", "噼啪作响的粉尘，能恢复精力。", ItemPropertyType.EnergyValue, 45),
+        new("consumable_shadow_vial.png", "Consumer_ShadowVial", 130, "暗影瓶", "深色药剂，能提升逃脱速度。", ItemPropertyType.SpeedValue, 18),
+        new("consumable_iron_root.png", "Consumer_IronRoot", 131, "铁根", "坚韧的根茎，能恢复生命并增强力量。", ItemPropertyType.HPValue, 40, ItemPropertyType.AttackValue, 10),
+        new("consumable_pearl_soup.png", "Consumer_PearlSoup", 132, "珍珠汤", "温和的汤羹，能滋养身体与心灵。", ItemPropertyType.HPValue, 50, ItemPropertyType.MentalValue, 15),
+        new("consumable_flame_orchid.png", "Consumer_FlameOrchid", 133, "焰兰", "炽热的花朵，能提升攻击并恢复精力。", ItemPropertyType.AttackValue, 22, ItemPropertyType.EnergyValue, 10),
+        new("consumable_storm_charm.png", "Consumer_StormCharm", 134, "风暴护符", "蕴藏雷能的护符，能提升速度与力量。", ItemPropertyType.SpeedValue, 10, ItemPropertyType.AttackValue, 15),
+        new("consumable_holy_water.png", "Consumer_HolyWater", 135, "圣水", "受祝福的清水，能治愈身体与心灵。", ItemPropertyType.HPValue, 60, ItemPropertyType.MentalValue, 20),
     };
 
     [MenuItem("Tools/Items/Create 10 Consumable ItemSOs And Add To Backpack")]

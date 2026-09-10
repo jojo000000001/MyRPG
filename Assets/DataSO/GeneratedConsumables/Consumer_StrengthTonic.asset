@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_StrengthTonic
   m_EditorClassIdentifier: 
   id: 112
-  name: Strength Tonic
+  name: 力量补剂
   itemType: 1
-  description: A tonic that sharpens your attack.
+  description: 能提升攻击力的补剂。
   propertyList:
   - PropertyType: 4
     Value: 20

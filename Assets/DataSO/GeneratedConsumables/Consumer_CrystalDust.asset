@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_CrystalDust
   m_EditorClassIdentifier: 
   id: 122
-  name: Crystal Dust
+  name: 水晶粉
   itemType: 1
-  description: Shimmering dust that clears mental fatigue.
+  description: 闪光的粉尘，能消除精神疲劳。
   propertyList:
   - PropertyType: 2
     Value: 50

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5d4b6a78efc49f42a0e783027633d3a, type: 3}
+  m_Name: Shield_Wood
+  m_EditorClassIdentifier: 
+  id: 6
+  name: "\u8F7B\u6728\u9E22\u76FE"
+  itemType: 2
+  description: "\u8F7B\u4FBF\u7684\u9E22\u5F62\u6728\u76FE\uFF0C\u80FD\u63D0\u4F9B\u57FA\u7840\u683C\u6321\u8010\u4E45\u3002"
+  propertyList:
+  - PropertyType: 6
+    Value: 80
+  icon: {fileID: 21300000, guid: 61baa523d1faff94884c9c29717c68e3, type: 3}
+  prefab: {fileID: 2942498712186578783, guid: 73263529b3a073a4182bcd40193e602b, type: 3}

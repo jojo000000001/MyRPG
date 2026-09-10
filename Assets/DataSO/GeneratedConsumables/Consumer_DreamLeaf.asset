@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_DreamLeaf
   m_EditorClassIdentifier: 
   id: 138
-  name: Dream Leaf
+  name: 梦叶
   itemType: 1
-  description: A mystical leaf that clears mental fog.
+  description: 神秘叶片，能驱散精神迷雾。
   propertyList:
   - PropertyType: 2
     Value: 48

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_HealingHerb
   m_EditorClassIdentifier: 
   id: 108
-  name: Healing Herb
+  name: 治愈草药
   itemType: 1
-  description: Fresh herbs that gently restore HP.
+  description: 新鲜草药，能温和地恢复生命。
   propertyList:
   - PropertyType: 0
     Value: 50

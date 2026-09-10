@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_HoneyCookie
   m_EditorClassIdentifier: 
   id: 115
-  name: Honey Cookie
+  name: 蜂蜜饼干
   itemType: 1
-  description: Sweet cookies that restore HP and energy.
+  description: 香甜饼干，能恢复生命和精力。
   propertyList:
   - PropertyType: 0
     Value: 45

@@ -10,6 +10,8 @@ public sealed class DragonBoss : Monster
 {
     private enum State
     {
+        Aerial,
+        Landing,
         Idle,
         Chase,
         Attack,
@@ -24,10 +26,10 @@ public sealed class DragonBoss : Monster
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 1.6f;
     [SerializeField] private float chaseSpeed = 2.4f;
-    [SerializeField] private float rotateSpeed = 160f;
+    [SerializeField] private float rotateSpeed = 60f;
     [SerializeField] private float gravity = -12f;
     [SerializeField] private float arrivalThreshold = 0.45f;
-    [SerializeField] private float minPlayerSeparation = 3.1f;
+    [SerializeField] private float minPlayerSeparation = 5.4f;
 
     [Header("Attack")]
     [SerializeField] private int attackDamage = 20;
@@ -36,23 +38,28 @@ public sealed class DragonBoss : Monster
     [SerializeField] private float attackHitGraceRange = 0.8f;
     [SerializeField, Range(1f, 360f)] private float attackArcDegrees = 200f;
     [SerializeField] private float attackCooldown = 2f;
-    [SerializeField] private float attackWindupSeconds = 0.5f;
-    [SerializeField] private float attackLockSeconds = 1.25f;
+    [SerializeField] private float attackWindupSeconds = 1.38f;
+    [SerializeField] private float attackHitWindowSeconds = 0.5f;
+    [SerializeField] private float attackLockSeconds = 2.55f;
+    [SerializeField, Range(0f, 1f)] private float meleeHitStartNormalized = 0.42f;
+    [SerializeField, Range(0f, 1f)] private float meleeHitEndNormalized = 0.63f;
+    [SerializeField] private float meleeStrikeRadius = 2.4f;
+    [SerializeField] private string meleeStrikeBone = "UpperMouth01";
     [SerializeField] private string attackTriggerParam = "Attack";
     [SerializeField] private string attackIndexParam = "AttackIndex";
     [SerializeField] private string deathBoolParam = "Dead";
 
     [Header("Death")]
-    [SerializeField] private float destroyAfterDeathSeconds = 4f;
+    [SerializeField] private float destroyAfterDeathSeconds = 5f;
 
     [Header("Hit Reaction")]
-    [SerializeField] private float hitStaggerSeconds = 0.35f;
+    [SerializeField] private float hitStaggerSeconds;
     [SerializeField] private float hitKnockbackSpeed = 1.4f;
     [SerializeField] private float hitKnockbackDamping = 10f;
 
     [Header("Facing")]
-    [SerializeField] private float attackRotateSpeed = 480f;
-    [SerializeField] private bool snapFaceOnAttackStart = true;
+    [SerializeField] private float attackRotateSpeed = 82f;
+    [SerializeField] private bool snapFaceOnAttackStart = false;
     [SerializeField] private Vector3 attackAssistFacingOffset = new Vector3(0f, 1.2f, 1.8f);
     [SerializeField] private float attackAssistRangeBonus = 5f;
 
@@ -66,6 +73,30 @@ public sealed class DragonBoss : Monster
     [SerializeField] private float spawnGroundClearance = 0.05f;
     [SerializeField] private float visualStandLower = 0f;
 
+    [Header("Aerial")]
+    [SerializeField] private float aerialHeight = 16f;
+    [SerializeField] private float aerialCircleRadius = 9f;
+    [SerializeField] private float aerialAngularSpeed = 16f;
+    [SerializeField] private float aerialBobAmplitude = 0.55f;
+    [SerializeField] private float landSeconds = 2.6f;
+    [SerializeField] private Vector3 cinematicLookOffset = new Vector3(0f, 3.2f, 0.35f);
+    [SerializeField] private string flyingBoolParam = "Flying";
+    [SerializeField] private string landTriggerParam = "Land";
+
+    [Header("Flame VFX")]
+    [SerializeField] private bool enableFlameAttack = true;
+    [SerializeField] private Transform flameMouth;
+    [SerializeField] private string flameMouthBone = "UpperMouth01";
+    [SerializeField] private float flameVfxDelaySeconds = 0.45f;
+    [SerializeField] private float flameVfxDurationSeconds = 1.9f;
+    [SerializeField] private float flameAttackLockSeconds = 2.5f;
+    [SerializeField] private float flameRange = 12f;
+    [SerializeField, Range(1f, 180f)] private float flameArcDegrees = 55f;
+    [SerializeField] private float flameTickInterval = 0.32f;
+    [SerializeField] private int flameTickDamage = 10;
+    [SerializeField] private DamageType flameDamageType = DamageType.Magic;
+    [SerializeField] private float flameRecoveryCooldownSeconds = 0.45f;
+
     [SerializeField] private State currentState = State.Idle;
 
     private CharacterController characterController;
@@ -78,6 +109,47 @@ public sealed class DragonBoss : Monster
     private bool attackDamageApplied;
     private int nextAttackIndex;
     private bool registeredWithDemo;
+    private Vector3 perchCenter;
+    private float aerialAngle;
+    private float landStartedAt = -999f;
+    private Vector3 landFromPosition;
+    private Quaternion landFromRotation;
+    private Vector3 landToPosition;
+    private Quaternion landToRotation;
+    private DragonFlameBreath flameBreath;
+    private Coroutine flameVfxRoutine;
+    private Transform meleeStrikePoint;
+    private int currentAttackIndex;
+    private float nextFlameTickAt = -999f;
+    private const int FlameAttackIndex = 1;
+    private const string ClawAttackStateName = "ClawAttack";
+    private const string FlameAttackStateName = "FlameAttack";
+    private const string DieStateName = "Die";
+
+    public bool IsCombatReady =>
+        !IsDead && currentState != State.Aerial && currentState != State.Landing;
+
+    /// <summary>是否已经离开盘旋状态（落地中或已可交战）。读档用来决定要不要让龙下来。</summary>
+    public bool HasLandedOrDescended => currentState != State.Aerial;
+
+    public Vector3 CinematicLookOffset => cinematicLookOffset;
+
+    public float DeathPresentationSeconds
+    {
+        get
+        {
+            float clipLength = GetDieClipLength();
+            if (clipLength <= 0f)
+                clipLength = 2.2f;
+
+            return clipLength + 0.55f;
+        }
+    }
+
+    public Vector3 GetCinematicLookPoint()
+    {
+        return transform.position + cinematicLookOffset;
+    }
 
     protected override void Awake()
     {
@@ -87,17 +159,58 @@ public sealed class DragonBoss : Monster
         base.Awake();
         characterController = GetComponent<CharacterController>();
         CacheSpawnPlatform();
+        flameBreath = DragonFlameBreath.Ensure(transform, ResolveFlameMouth());
+        if (!IsDescentUnlocked())
+            SetFlyingAnimator(true);
     }
 
     private void Start()
     {
         PrepareVisualBounds();
-        SnapToSpawnPlatform();
+        CachePerchCenter();
         AcquireTarget();
-        EnterState(State.Idle);
+
+        if (IsDescentUnlocked())
+        {
+            SnapToSpawnPlatform();
+            EnterState(State.Idle);
+        }
+        else
+        {
+            EnterAerial();
+        }
 
         if (registerWithDemo)
             TryRegisterWithDemo();
+    }
+
+    /// <summary>
+    /// 第二个任务完成后落地，开始可以交战。
+    /// </summary>
+    public void BeginDescent()
+    {
+        if (IsDead || currentState == State.Landing || IsCombatReady)
+            return;
+
+        EnterLanding();
+    }
+
+    /// <summary>读档时巨龙已死：关掉对象，不播死亡演出、不发奖励。</summary>
+    public void RestoreAsDead()
+    {
+        UnregisterWithoutDeath();
+        BgmManager.NotifyDragonDisengaged(GetInstanceID());
+        currentState = State.Dead;
+        StopFlameBreath();
+        SetFlyingAnimator(false);
+        verticalVelocity = Vector3.zero;
+        hitKnockbackVelocity = Vector3.zero;
+        SetLocomotionSpeed01(0f);
+
+        if (characterController != null)
+            characterController.enabled = false;
+
+        gameObject.SetActive(false);
     }
 
     private void CacheSpawnPlatform()
@@ -156,6 +269,9 @@ public sealed class DragonBoss : Monster
         if (characterController == null || spawnPlatformCollider == null || IsDead)
             return;
 
+        if (currentState == State.Aerial || currentState == State.Landing)
+            return;
+
         if (spawnPlatform != null && !spawnPlatform.ContainsPlanar(transform.position))
             return;
 
@@ -177,10 +293,10 @@ public sealed class DragonBoss : Monster
     private float GetVisualFeetOffsetFromTransform()
     {
         float lowestY = float.PositiveInfinity;
-        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
-            Renderer renderer = renderers[i];
+            SkinnedMeshRenderer renderer = renderers[i];
             if (renderer == null || !renderer.enabled)
                 continue;
 
@@ -207,14 +323,30 @@ public sealed class DragonBoss : Monster
 
         if (Time.time < hitStaggerUntil)
         {
-            SetLocomotionSpeed01(0f);
-            FaceTarget();
-            MoveVerticalOnly();
-            return;
+            if (!IsCombatReady)
+            {
+                hitStaggerUntil = -999f;
+            }
+            else
+            {
+                SetLocomotionSpeed01(0f);
+                FaceTarget();
+                MoveVerticalOnly();
+                return;
+            }
         }
+
+        if (currentState == State.Aerial && IsDescentUnlocked())
+            BeginDescent();
 
         switch (currentState)
         {
+            case State.Aerial:
+                UpdateAerial();
+                break;
+            case State.Landing:
+                UpdateLanding();
+                break;
             case State.Idle:
                 UpdateIdle();
                 break;
@@ -232,6 +364,9 @@ public sealed class DragonBoss : Monster
 
     public override bool TryTakeDamage(DamageInfo damage)
     {
+        if (!IsCombatReady)
+            return false;
+
         bool accepted = base.TryTakeDamage(damage);
         if (!accepted || IsDead)
             return accepted;
@@ -252,21 +387,23 @@ public sealed class DragonBoss : Monster
         base.OnDeath();
         BgmManager.NotifyDragonDisengaged(GetInstanceID());
         currentState = State.Dead;
+        SetFlyingAnimator(false);
+        StopFlameBreath();
         verticalVelocity = Vector3.zero;
         hitKnockbackVelocity = Vector3.zero;
         SetLocomotionSpeed01(0f);
-
-        if (animator != null && HasAnimatorParameter(deathBoolParam, AnimatorControllerParameterType.Bool))
-            animator.SetBool(deathBoolParam, true);
+        PlayDeathAnimation();
 
         if (characterController != null)
             characterController.enabled = false;
 
-        if (defeatEndsDemo && DemoGameManager.Instance != null)
-            DemoGameManager.Instance.NotifyBossDefeated();
+        if (defeatEndsDemo && DemoGameManager.Instance != null && QuestManager.Instance == null)
+            StartCoroutine(NotifyBossDefeatedAfterPresentation());
 
-        StartCoroutine(DestroyAfterDelay(destroyAfterDeathSeconds));
+        StartCoroutine(DestroyAfterDelay(GetDeathDespawnDelay()));
     }
+
+    public override bool ShouldShowHealthBar => base.ShouldShowHealthBar && IsCombatReady;
 
     private void TryRegisterWithDemo()
     {
@@ -275,6 +412,178 @@ public sealed class DragonBoss : Monster
 
         registeredWithDemo = true;
         DemoGameManager.Instance.RegisterEnemy(this);
+    }
+
+    private void UpdateAerial()
+    {
+        SetLocomotionSpeed01(0f);
+        aerialAngle += aerialAngularSpeed * Mathf.Deg2Rad * Time.deltaTime;
+        SetWorldPose(GetAerialPose(aerialAngle), GetAerialFacing(aerialAngle));
+    }
+
+    private void UpdateLanding()
+    {
+        SetLocomotionSpeed01(0f);
+        float duration = Mathf.Max(0.35f, landSeconds);
+        float t = Mathf.Clamp01((Time.time - landStartedAt) / duration);
+        float eased = t * t * (3f - 2f * t);
+        SetWorldPose(
+            Vector3.Lerp(landFromPosition, landToPosition, eased),
+            Quaternion.Slerp(landFromRotation, landToRotation, eased));
+
+        if (t < 1f)
+            return;
+
+        SnapToSpawnPlatform();
+        SetCharacterControllerEnabled(true);
+        EnterState(State.Idle);
+    }
+
+    private void EnterAerial()
+    {
+        currentState = State.Aerial;
+        verticalVelocity = Vector3.zero;
+        SetCharacterControllerEnabled(false);
+        aerialAngle = Random.Range(0f, Mathf.PI * 2f);
+        SetWorldPose(GetAerialPose(aerialAngle), GetAerialFacing(aerialAngle));
+        SetFlyingAnimator(true);
+        SetLocomotionSpeed01(0f);
+    }
+
+    private void EnterLanding()
+    {
+        if (currentState == State.Landing || IsDead)
+            return;
+
+        currentState = State.Landing;
+        BgmManager.NotifyDragonDisengaged(GetInstanceID());
+        SetCharacterControllerEnabled(false);
+        landFromPosition = transform.position;
+        landFromRotation = transform.rotation;
+        landToPosition = GetPerchStandPosition();
+        landToRotation = GetPerchStandRotation();
+        landStartedAt = Time.time;
+        SetFlyingAnimator(false);
+        TriggerLandAnimation();
+        SetLocomotionSpeed01(0f);
+    }
+
+    private void CachePerchCenter()
+    {
+        if (spawnPlatform != null)
+            perchCenter = spawnPlatform.transform.position;
+        else if (spawnPlatformCollider != null)
+            perchCenter = spawnPlatformCollider.bounds.center;
+        else
+            perchCenter = transform.position;
+    }
+
+    private Vector3 GetAerialPose(float angle)
+    {
+        Vector3 center = GetPerchPlanarCenter();
+        float standY = GetStandSurfaceY();
+        Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * Mathf.Max(1f, aerialCircleRadius);
+        Vector3 position = center + offset;
+        position.y = standY + Mathf.Max(4f, aerialHeight) + Mathf.Sin(Time.time * 0.85f) * aerialBobAmplitude;
+        return position;
+    }
+
+    private Quaternion GetAerialFacing(float angle)
+    {
+        Vector3 tangent = new Vector3(-Mathf.Sin(angle), 0f, Mathf.Cos(angle));
+        if (tangent.sqrMagnitude < 0.0001f)
+            return transform.rotation;
+
+        return Quaternion.LookRotation(tangent, Vector3.up);
+    }
+
+    private Vector3 GetPerchPlanarCenter()
+    {
+        return new Vector3(perchCenter.x, 0f, perchCenter.z);
+    }
+
+    private Vector3 GetPerchStandPosition()
+    {
+        Vector3 position = GetPerchPlanarCenter();
+        float feetOffset = characterController != null
+            ? characterController.center.y - characterController.height * 0.5f
+            : 0f;
+        position.y = GetStandSurfaceY() - feetOffset - visualStandLower;
+        return position;
+    }
+
+    private Quaternion GetPerchStandRotation()
+    {
+        Vector3 look = Vector3.zero;
+        if (HasValidTarget())
+        {
+            look = target.position - GetPerchStandPosition();
+            look.y = 0f;
+        }
+
+        if (look.sqrMagnitude < 0.0001f)
+            look = new Vector3(-perchCenter.x, 0f, -perchCenter.z);
+
+        if (look.sqrMagnitude < 0.0001f)
+            return Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+
+        return Quaternion.LookRotation(look.normalized, Vector3.up);
+    }
+
+    private float GetStandSurfaceY()
+    {
+        if (spawnPlatform != null)
+            return spawnPlatform.GetStandSurfaceY();
+
+        if (spawnPlatformCollider != null)
+            return spawnPlatformCollider.bounds.max.y + spawnGroundClearance;
+
+        return transform.position.y;
+    }
+
+    private static bool IsDescentUnlocked()
+    {
+        QuestManager quests = QuestManager.Instance;
+        if (quests == null)
+            return false;
+
+        return quests.GetStatus(QuestIds.DefeatAllGoblins) == QuestManager.Status.Completed
+            || quests.GetStatus(QuestIds.SlayDragon) != QuestManager.Status.Inactive;
+    }
+
+    private void SetWorldPose(Vector3 position, Quaternion rotation)
+    {
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled)
+            characterController.enabled = false;
+
+        transform.SetPositionAndRotation(position, Quaternion.Euler(0f, rotation.eulerAngles.y, 0f));
+
+        if (controllerWasEnabled)
+            characterController.enabled = true;
+    }
+
+    private void SetCharacterControllerEnabled(bool enabled)
+    {
+        if (characterController != null)
+            characterController.enabled = enabled;
+    }
+
+    private void SetFlyingAnimator(bool flying)
+    {
+        if (animator == null || !HasAnimatorParameter(flyingBoolParam, AnimatorControllerParameterType.Bool))
+            return;
+
+        animator.SetBool(flyingBoolParam, flying);
+    }
+
+    private void TriggerLandAnimation()
+    {
+        if (animator == null || !HasAnimatorParameter(landTriggerParam, AnimatorControllerParameterType.Trigger))
+            return;
+
+        animator.ResetTrigger(landTriggerParam);
+        animator.SetTrigger(landTriggerParam);
     }
 
     private void UpdateIdle()
@@ -322,20 +631,16 @@ public sealed class DragonBoss : Monster
         FaceTarget();
         MoveVerticalOnly();
 
-        if (!attackDamageApplied && Time.time - attackStartedAt >= attackWindupSeconds)
-        {
-            ApplyAttackDamage();
-            attackDamageApplied = true;
-        }
+        if (IsFlameAttack)
+            TryApplyFlameTicks();
+        else
+            TryApplyMeleeStrike();
 
-        if (Time.time - attackStartedAt >= attackLockSeconds)
+        if (Time.time - attackStartedAt >= GetCurrentAttackLockSeconds())
         {
-            nextAttackAt = Time.time + attackCooldown;
-
-            if (IsTargetInAttackRange() && HasValidTarget())
-                EnterState(State.Attack);
-            else
-                EnterState(State.Chase);
+            bool wasFlame = IsFlameAttack;
+            nextAttackAt = Time.time + (wasFlame ? flameRecoveryCooldownSeconds : attackCooldown);
+            EnterState(State.Chase);
         }
     }
 
@@ -344,13 +649,20 @@ public sealed class DragonBoss : Monster
         if (currentState == State.Dead || nextState == currentState)
             return;
 
+        if ((nextState == State.Chase || nextState == State.Attack) && !IsCombatReady && nextState != State.Landing)
+            return;
+
         State previousState = currentState;
         currentState = nextState;
         UpdateCombatMusic(previousState, nextState);
 
+        if (previousState == State.Attack && nextState != State.Attack)
+            StopFlameBreath();
+
         switch (nextState)
         {
             case State.Idle:
+                SetFlyingAnimator(false);
                 SetLocomotionSpeed01(0f);
                 break;
             case State.Chase:
@@ -359,6 +671,8 @@ public sealed class DragonBoss : Monster
             case State.Attack:
                 attackStartedAt = Time.time;
                 attackDamageApplied = false;
+                nextFlameTickAt = -999f;
+                SetLocomotionSpeed01(0f);
                 if (snapFaceOnAttackStart)
                     FaceTarget(snap: true);
                 TriggerAttackAnimation();
@@ -384,22 +698,246 @@ public sealed class DragonBoss : Monster
 
     private void TriggerAttackAnimation()
     {
-        if (animator == null)
-            return;
+        currentAttackIndex = enableFlameAttack ? nextAttackIndex : 0;
+        nextAttackIndex = enableFlameAttack && currentAttackIndex == 0 ? FlameAttackIndex : 0;
 
-        if (HasAnimatorParameter(attackIndexParam, AnimatorControllerParameterType.Int))
-            animator.SetInteger(attackIndexParam, nextAttackIndex);
-
-        if (HasAnimatorParameter(attackTriggerParam, AnimatorControllerParameterType.Trigger))
+        if (animator != null)
         {
-            animator.ResetTrigger(attackTriggerParam);
-            animator.SetTrigger(attackTriggerParam);
+            if (HasAnimatorParameter(attackIndexParam, AnimatorControllerParameterType.Int))
+                animator.SetInteger(attackIndexParam, currentAttackIndex);
+
+            if (HasAnimatorParameter(attackTriggerParam, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(attackTriggerParam);
+                animator.SetTrigger(attackTriggerParam);
+            }
+
+            PlayAnimatorState(currentAttackIndex == FlameAttackIndex ? FlameAttackStateName : ClawAttackStateName, 0.1f);
         }
 
-        nextAttackIndex = nextAttackIndex == 0 ? 1 : 0;
+        if (currentAttackIndex == FlameAttackIndex)
+        {
+            nextFlameTickAt = Time.time + flameVfxDelaySeconds;
+            PlayFlameBreath();
+        }
+        else
+            StopFlameBreath();
     }
 
-    private void ApplyAttackDamage()
+    private void PlayFlameBreath()
+    {
+        if (flameBreath == null)
+            flameBreath = DragonFlameBreath.Ensure(transform, ResolveFlameMouth());
+
+        if (flameVfxRoutine != null)
+            StopCoroutine(flameVfxRoutine);
+
+        flameVfxRoutine = StartCoroutine(PlayFlameBreathSoon());
+    }
+
+    private IEnumerator PlayFlameBreathSoon()
+    {
+        if (flameVfxDelaySeconds > 0f)
+            yield return new WaitForSeconds(flameVfxDelaySeconds);
+
+        if (currentState == State.Attack && !IsDead && flameBreath != null)
+            flameBreath.Play();
+
+        if (flameVfxDurationSeconds > 0f)
+            yield return new WaitForSeconds(flameVfxDurationSeconds);
+
+        flameBreath?.Stop();
+        flameVfxRoutine = null;
+    }
+
+    private void StopFlameBreath()
+    {
+        if (flameVfxRoutine != null)
+        {
+            StopCoroutine(flameVfxRoutine);
+            flameVfxRoutine = null;
+        }
+
+        flameBreath?.Stop();
+    }
+
+    private Transform ResolveFlameMouth()
+    {
+        if (flameMouth != null)
+            return flameMouth;
+
+        if (string.IsNullOrEmpty(flameMouthBone))
+            return transform;
+
+        Transform[] children = GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (children[i] != null && children[i].name == flameMouthBone)
+            {
+                flameMouth = children[i];
+                return flameMouth;
+            }
+        }
+
+        return transform;
+    }
+
+    private bool IsFlameAttack => currentAttackIndex == FlameAttackIndex && currentState == State.Attack;
+
+    private float GetCurrentAttackLockSeconds()
+    {
+        if (!IsFlameAttack)
+            return attackLockSeconds;
+
+        return flameVfxDelaySeconds + flameVfxDurationSeconds;
+    }
+
+    private void TryApplyMeleeStrike()
+    {
+        if (attackDamageApplied || IsDead)
+            return;
+
+        if (!IsInMeleeHitWindow())
+            return;
+
+        if (!IsTargetInMeleeStrikeRange())
+            return;
+
+        bool hitLanded = TryApplyMeleeHit();
+        if (hitLanded || IsTargetDodgeInvulnerable())
+            attackDamageApplied = true;
+    }
+
+    private bool IsInMeleeHitWindow()
+    {
+        if (TryGetClawAttackNormalizedTime(out float normalizedTime))
+            return normalizedTime >= meleeHitStartNormalized && normalizedTime <= meleeHitEndNormalized;
+
+        float elapsed = Time.time - attackStartedAt;
+        float start = Mathf.Max(0f, attackWindupSeconds);
+        return elapsed >= start && elapsed <= start + Mathf.Max(0.05f, attackHitWindowSeconds);
+    }
+
+    private bool TryGetClawAttackNormalizedTime(out float normalizedTime)
+    {
+        normalizedTime = 0f;
+        if (animator == null)
+            return false;
+
+        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+        if (current.IsName(ClawAttackStateName))
+        {
+            normalizedTime = current.normalizedTime;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryApplyMeleeHit()
+    {
+        if (!IsTargetInMeleeStrikeRange())
+            return false;
+
+        Vector3 direction = target.position - transform.position;
+        direction.y = 0f;
+
+        IDamageable damageable = FindDamageable(target);
+        if (damageable == null)
+            return false;
+
+        if (direction.sqrMagnitude > 0.0001f)
+            direction.Normalize();
+        else
+            direction = transform.forward;
+
+        int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, attackDamageType);
+        int damageAmount = ResolveOutgoingDamage(attackDamage, targetDefense, attackDamageType, out bool isCritical);
+        var info = new DamageInfo(damageAmount, gameObject, target.position, direction, attackDamageType, isCritical);
+        if (!damageable.TryTakeDamage(info))
+            return false;
+
+        TryApplyAttackLifeSteal(damageAmount);
+        return true;
+    }
+
+    private bool IsTargetInMeleeStrikeRange()
+    {
+        if (!HasValidTarget())
+            return false;
+
+        Vector3 origin = GetMeleeStrikeOrigin();
+        Vector3 aim = target.position + Vector3.up * 0.9f;
+        if (Vector3.Distance(origin, aim) > meleeStrikeRadius)
+            return false;
+
+        Vector3 direction = target.position - transform.position;
+        direction.y = 0f;
+        return IsInsideAttackArc(direction, attackArcDegrees);
+    }
+
+    private bool IsTargetDodgeInvulnerable()
+    {
+        if (target == null)
+            return false;
+
+        Player player = target.GetComponent<Player>();
+        return player != null && player.IsDodgeInvulnerable();
+    }
+
+    private Vector3 GetMeleeStrikeOrigin()
+    {
+        Transform point = ResolveMeleeStrikePoint();
+        return point != null ? point.position : GetAttackAssistFacingPoint();
+    }
+
+    private Transform ResolveMeleeStrikePoint()
+    {
+        if (meleeStrikePoint != null)
+            return meleeStrikePoint;
+
+        if (flameMouth != null && (string.IsNullOrEmpty(meleeStrikeBone) || flameMouth.name == meleeStrikeBone))
+        {
+            meleeStrikePoint = flameMouth;
+            return meleeStrikePoint;
+        }
+
+        if (string.IsNullOrEmpty(meleeStrikeBone))
+            return transform;
+
+        Transform[] children = GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (children[i] != null && children[i].name == meleeStrikeBone)
+            {
+                meleeStrikePoint = children[i];
+                return meleeStrikePoint;
+            }
+        }
+
+        return transform;
+    }
+
+    private void TryApplyFlameTicks()
+    {
+        if (!IsFlameAttack || IsDead)
+            return;
+
+        float elapsed = Time.time - attackStartedAt;
+        if (elapsed < flameVfxDelaySeconds)
+            return;
+
+        if (elapsed > flameVfxDelaySeconds + flameVfxDurationSeconds)
+            return;
+
+        if (Time.time < nextFlameTickAt)
+            return;
+
+        ApplyAttackDamage(flameTickDamage, flameDamageType, flameRange, flameArcDegrees);
+        nextFlameTickAt = Time.time + Mathf.Max(0.05f, flameTickInterval);
+    }
+
+    private void ApplyAttackDamage(int damage, DamageType damageType, float hitRange, float arcDegrees)
     {
         if (!HasValidTarget())
             return;
@@ -407,11 +945,10 @@ public sealed class DragonBoss : Monster
         Vector3 direction = target.position - transform.position;
         direction.y = 0f;
 
-        float hitRange = attackRange + attackHitGraceRange;
         if (direction.magnitude > hitRange)
             return;
 
-        if (!IsInsideAttackArc(direction))
+        if (!IsInsideAttackArc(direction, arcDegrees))
             return;
 
         IDamageable damageable = FindDamageable(target);
@@ -423,10 +960,10 @@ public sealed class DragonBoss : Monster
         else
             direction = transform.forward;
 
-        int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, attackDamageType);
-        int damageAmount = ResolveOutgoingDamage(attackDamage, targetDefense, attackDamageType, out bool isCritical);
-        var damage = new DamageInfo(damageAmount, gameObject, target.position, direction, attackDamageType, isCritical);
-        if (damageable.TryTakeDamage(damage))
+        int targetDefense = CombatDamageFormulas.GetTargetDefense(damageable, damageType);
+        int damageAmount = ResolveOutgoingDamage(damage, targetDefense, damageType, out bool isCritical);
+        var info = new DamageInfo(damageAmount, gameObject, target.position, direction, damageType, isCritical);
+        if (damageable.TryTakeDamage(info))
             TryApplyAttackLifeSteal(damageAmount);
     }
 
@@ -463,6 +1000,9 @@ public sealed class DragonBoss : Monster
 
     private void MoveVerticalOnly()
     {
+        if (characterController == null || !characterController.enabled)
+            return;
+
         characterController.Move((verticalVelocity + ConsumeHitKnockbackVelocity()) * Time.deltaTime);
     }
 
@@ -496,6 +1036,12 @@ public sealed class DragonBoss : Monster
 
     private void ApplyGravity()
     {
+        if (currentState == State.Aerial || currentState == State.Landing)
+            return;
+
+        if (characterController == null || !characterController.enabled)
+            return;
+
         if (characterController.isGrounded && verticalVelocity.y < 0f)
             verticalVelocity.y = -1f;
         else
@@ -504,8 +1050,8 @@ public sealed class DragonBoss : Monster
 
     private void ApplyHitReaction(DamageInfo damage)
     {
-        attackDamageApplied = true;
-        hitStaggerUntil = Mathf.Max(hitStaggerUntil, Time.time + hitStaggerSeconds);
+        if (hitStaggerSeconds > 0f)
+            hitStaggerUntil = Mathf.Max(hitStaggerUntil, Time.time + hitStaggerSeconds);
 
         Vector3 direction = damage.direction;
         direction.y = 0f;
@@ -564,12 +1110,16 @@ public sealed class DragonBoss : Monster
 
     private bool IsTargetInAttackRange()
     {
-        return HasValidTarget() && GetPlanarDistance(transform.position, target.position) <= attackRange;
+        if (!HasValidTarget())
+            return false;
+
+        float range = enableFlameAttack && nextAttackIndex == FlameAttackIndex ? flameRange : attackRange;
+        return GetPlanarDistance(transform.position, target.position) <= range;
     }
 
-    private bool IsInsideAttackArc(Vector3 directionToTarget)
+    private bool IsInsideAttackArc(Vector3 directionToTarget, float arcDegrees)
     {
-        if (attackArcDegrees >= 359f)
+        if (arcDegrees >= 359f)
             return true;
 
         directionToTarget.y = 0f;
@@ -581,7 +1131,7 @@ public sealed class DragonBoss : Monster
         if (forward.sqrMagnitude < 0.0001f)
             return true;
 
-        return Vector3.Angle(forward, directionToTarget) <= attackArcDegrees * 0.5f;
+        return Vector3.Angle(forward, directionToTarget) <= arcDegrees * 0.5f;
     }
 
     private static IDamageable FindDamageable(Transform transformToSearch)
@@ -624,9 +1174,71 @@ public sealed class DragonBoss : Monster
         Destroy(gameObject);
     }
 
+    private IEnumerator NotifyBossDefeatedAfterPresentation()
+    {
+        yield return new WaitForSeconds(DeathPresentationSeconds);
+
+        if (DemoGameManager.Instance != null)
+            DemoGameManager.Instance.NotifyBossDefeated();
+    }
+
+    private void PlayDeathAnimation()
+    {
+        if (animator == null)
+            return;
+
+        if (HasAnimatorParameter(attackTriggerParam, AnimatorControllerParameterType.Trigger))
+            animator.ResetTrigger(attackTriggerParam);
+
+        if (HasAnimatorParameter(landTriggerParam, AnimatorControllerParameterType.Trigger))
+            animator.ResetTrigger(landTriggerParam);
+
+        if (HasAnimatorParameter(deathBoolParam, AnimatorControllerParameterType.Bool))
+            animator.SetBool(deathBoolParam, true);
+
+        PlayAnimatorState(DieStateName, 0f);
+        animator.Update(0f);
+    }
+
+    private void PlayAnimatorState(string stateName, float fadeSeconds)
+    {
+        if (animator == null || string.IsNullOrEmpty(stateName))
+            return;
+
+        if (fadeSeconds <= 0f)
+            animator.Play(stateName, 0, 0f);
+        else
+            animator.CrossFadeInFixedTime(stateName, fadeSeconds, 0, 0f);
+    }
+
+    private float GetDeathDespawnDelay()
+    {
+        return Mathf.Max(0.5f, destroyAfterDeathSeconds, DeathPresentationSeconds + 0.5f);
+    }
+
+    private float GetDieClipLength()
+    {
+        RuntimeAnimatorController controller = animator != null ? animator.runtimeAnimatorController : null;
+        if (controller == null)
+            return 0f;
+
+        AnimationClip[] clips = controller.animationClips;
+        for (int i = 0; i < clips.Length; i++)
+        {
+            AnimationClip clip = clips[i];
+            if (clip != null && clip.name == "Die")
+                return clip.length;
+        }
+
+        return 0f;
+    }
+
     private void LateUpdate()
     {
         PreventPlatformSink();
+
+        if (IsDead)
+            return;
 
         Vector3 euler = transform.eulerAngles;
         transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
@@ -643,6 +1255,23 @@ public sealed class DragonBoss : Monster
         attackRotateSpeed = Mathf.Max(rotateSpeed, attackRotateSpeed);
         attackAssistRangeBonus = Mathf.Max(0f, attackAssistRangeBonus);
         attackCooldown = Mathf.Max(0.2f, attackCooldown);
-        attackLockSeconds = Mathf.Max(attackWindupSeconds, attackLockSeconds);
+        attackHitWindowSeconds = Mathf.Max(0.05f, attackHitWindowSeconds);
+        meleeHitStartNormalized = Mathf.Clamp01(meleeHitStartNormalized);
+        meleeHitEndNormalized = Mathf.Max(meleeHitStartNormalized, Mathf.Clamp01(meleeHitEndNormalized));
+        meleeStrikeRadius = Mathf.Max(0.5f, meleeStrikeRadius);
+        attackLockSeconds = Mathf.Max(attackWindupSeconds + attackHitWindowSeconds, attackLockSeconds);
+        aerialHeight = Mathf.Max(4f, aerialHeight);
+        aerialCircleRadius = Mathf.Max(1f, aerialCircleRadius);
+        aerialAngularSpeed = Mathf.Max(1f, aerialAngularSpeed);
+        landSeconds = Mathf.Max(0.35f, landSeconds);
+        hitStaggerSeconds = Mathf.Max(0f, hitStaggerSeconds);
+        flameVfxDelaySeconds = Mathf.Max(0f, flameVfxDelaySeconds);
+        flameVfxDurationSeconds = Mathf.Max(0.1f, flameVfxDurationSeconds);
+        flameAttackLockSeconds = Mathf.Max(flameVfxDelaySeconds + flameVfxDurationSeconds, flameAttackLockSeconds);
+        flameRange = Mathf.Max(attackRange, flameRange);
+        flameArcDegrees = Mathf.Clamp(flameArcDegrees, 1f, 180f);
+        flameTickInterval = Mathf.Max(0.05f, flameTickInterval);
+        flameTickDamage = Mathf.Max(1, flameTickDamage);
+        flameRecoveryCooldownSeconds = Mathf.Max(0f, flameRecoveryCooldownSeconds);
     }
 }

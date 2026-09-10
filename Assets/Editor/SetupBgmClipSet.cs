@@ -31,6 +31,17 @@ public static class SetupBgmClipSet
         EnsureResourcesBgmCopy("05 - Battle 1.ogg", "Battle1.ogg");
         EnsureResourcesBgmCopy("09 - Battle 2.ogg", "Battle2.ogg");
 
+        ConfigureBgmImport(ResourcesBgmDir + "/Title.ogg");
+        ConfigureBgmImport(ResourcesBgmDir + "/Town.ogg");
+        ConfigureBgmImport(ResourcesBgmDir + "/Forest.ogg");
+        ConfigureBgmImport(ResourcesBgmDir + "/Battle1.ogg");
+        ConfigureBgmImport(ResourcesBgmDir + "/Battle2.ogg");
+        ConfigureBgmImport($"{OggRoot}/02 - Title Theme.ogg");
+        ConfigureBgmImport($"{OggRoot}/03 - Definitely Our Town.ogg");
+        ConfigureBgmImport($"{OggRoot}/04 - Silent Forest.ogg");
+        ConfigureBgmImport($"{OggRoot}/05 - Battle 1.ogg");
+        ConfigureBgmImport($"{OggRoot}/09 - Battle 2.ogg");
+
         EditorUtility.SetDirty(clipSet);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -84,5 +95,19 @@ public static class SetupBgmClipSet
 
         if (!AssetDatabase.CopyAsset(sourcePath, targetPath))
             Debug.LogWarning($"SetupBgmClipSet: failed to copy {sourcePath} -> {targetPath}");
+    }
+
+    private static void ConfigureBgmImport(string assetPath)
+    {
+        AudioImporter importer = AssetImporter.GetAtPath(assetPath) as AudioImporter;
+        if (importer == null)
+            return;
+
+        AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+        settings.loadType = AudioClipLoadType.DecompressOnLoad;
+        settings.compressionFormat = AudioCompressionFormat.Vorbis;
+        importer.defaultSampleSettings = settings;
+        importer.loadInBackground = true;
+        importer.SaveAndReimport();
     }
 }

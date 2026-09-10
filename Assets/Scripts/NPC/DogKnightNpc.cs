@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 狗骑士 NPC：玩家进入发现范围后走近，到达对话距离后停下并开口。
+/// 狗骑士 NPC：第一次靠近会主动走来发布讨伐任务，不弹出商店选项；之后走进对话距离会自动出现商店对话。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
@@ -27,6 +27,7 @@ public sealed class DogKnightNpc : MonoBehaviour
     [SerializeField] private string speedFloatParam = "Speed";
 
     [Header("Dialogue")]
+    [SerializeField] private KeyCode interactKey = KeyCode.F;
     [SerializeField] private string speakerName = "狗骑士";
     [SerializeField] [TextArea(2, 4)] private string[] dialogueLines =
     {
@@ -42,10 +43,33 @@ public sealed class DogKnightNpc : MonoBehaviour
     private Vector3 verticalVelocity;
     private bool hasGreeted;
     private bool dialogueStarted;
+    private bool interactionConsumedThisVisit;
     private int speedParamHash;
     private bool speedParamExists;
 
     public string CurrentStateName => currentState.ToString();
+    public bool HasGreeted => hasGreeted;
+
+    /// <summary>读档还原是否已完成开场对话。已打过招呼则不再主动走来发布第一任务。</summary>
+    public void RestoreGreeting(bool greeted)
+    {
+        hasGreeted = greeted;
+        dialogueStarted = greeted;
+        if (greeted)
+            currentState = State.Idle;
+    }
+
+    /// <summary>读档还原犬骑士站位。</summary>
+    public void RestoreSavedPose(Vector3 position, float rotationY)
+    {
+        if (characterController != null)
+            characterController.enabled = false;
+
+        transform.SetPositionAndRotation(position, Quaternion.Euler(0f, rotationY, 0f));
+
+        if (characterController != null)
+            characterController.enabled = true;
+    }
 
     private void Awake()
     {
@@ -84,11 +108,19 @@ public sealed class DogKnightNpc : MonoBehaviour
         SetLocomotionSpeed01(0f);
         MoveVerticalOnly();
 
-        if (hasGreeted || !HasValidTarget())
+        if (!HasValidTarget())
             return;
 
-        if (GetPlanarDistance(transform.position, target.position) <= detectRadius)
-            EnterState(State.Approach);
+        float distance = GetPlanarDistance(transform.position, target.position);
+        if (!hasGreeted)
+        {
+            if (distance <= detectRadius)
+                EnterState(State.Approach);
+            return;
+        }
+
+        if (distance <= talkRadius)
+            EnterState(State.Talk);
     }
 
     private void UpdateApproach()
@@ -120,21 +152,76 @@ public sealed class DogKnightNpc : MonoBehaviour
     private void UpdateTalk()
     {
         SetLocomotionSpeed01(0f);
-        if (HasValidTarget() && GetPlanarDistance(transform.position, target.position) <= loseRadius)
-            FaceTarget();
+
+        if (!HasValidTarget() || GetPlanarDistance(transform.position, target.position) > GetLeaveTalkRadius())
+        {
+            EnterState(State.Idle);
+            return;
+        }
+
+        FaceTarget();
         MoveVerticalOnly();
 
-        if (dialogueStarted || hasGreeted)
+        if (!hasGreeted && !dialogueStarted)
+        {
+            dialogueStarted = true;
+            DialogueUI.Ensure().Show(speakerName, dialogueLines, OnGreetingFinished);
+            return;
+        }
+
+        TryOfferShopDialogue();
+    }
+
+    private void TryOfferShopDialogue()
+    {
+        if (!hasGreeted || DialogueUI.IsOpen || ShopUI.IsOpen || GameplayPauseMenu.IsOpen)
             return;
 
-        dialogueStarted = true;
-        hasGreeted = true;
-        DialogueUI.Ensure().Show(speakerName, dialogueLines, OnGreetingFinished);
+        PlayerHUD hud = PlayerHUD.Resolve();
+        if (hud != null && hud.IsInventoryOpen)
+            return;
+
+        bool pressedInteract = Input.GetKeyDown(interactKey);
+        if (!pressedInteract && interactionConsumedThisVisit)
+            return;
+
+        interactionConsumedThisVisit = true;
+        OfferInteractChoices();
     }
 
     private void OnGreetingFinished()
     {
+        hasGreeted = true;
+        interactionConsumedThisVisit = true;
         QuestManager.Ensure().StartHuntInvadingGoblin(transform);
+    }
+
+    private void OfferInteractChoices()
+    {
+        if (DialogueUI.IsOpen || ShopUI.IsOpen)
+            return;
+
+        DialogueUI.Ensure().ShowChoices(
+            speakerName,
+            "需要点补给吗？我这儿还有些货物。",
+            new[] { "商店", "离开" },
+            OnInteractChoice,
+            false);
+    }
+
+    private void OnInteractChoice(int index)
+    {
+        if (index != 0)
+            return;
+
+        OpenShop();
+    }
+
+    private static void OpenShop()
+    {
+        ShopUI shop = ShopUI.Ensure();
+        if (shop != null)
+            shop.Open();
     }
 
     private void EnterState(State nextState)
@@ -143,6 +230,9 @@ public sealed class DogKnightNpc : MonoBehaviour
             return;
 
         currentState = nextState;
+
+        if (currentState == State.Talk)
+            interactionConsumedThisVisit = false;
 
         if (currentState != State.Approach)
             SetLocomotionSpeed01(0f);
@@ -242,6 +332,14 @@ public sealed class DogKnightNpc : MonoBehaviour
 
         Player player = target.GetComponent<Player>();
         return player == null || !player.IsDead;
+    }
+
+    private float GetLeaveTalkRadius()
+    {
+        if (!hasGreeted)
+            return loseRadius;
+
+        return Mathf.Max(talkRadius + 2.5f, talkRadius * 2f);
     }
 
     private static float GetPlanarDistance(Vector3 a, Vector3 b)

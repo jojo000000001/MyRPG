@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_HpPotion
   m_EditorClassIdentifier: 
   id: 101
-  name: HP Potion
+  name: 生命药水
   itemType: 1
-  description: Restores a large amount of HP.
+  description: 能恢复大量生命值。
   propertyList:
   - PropertyType: 0
     Value: 100

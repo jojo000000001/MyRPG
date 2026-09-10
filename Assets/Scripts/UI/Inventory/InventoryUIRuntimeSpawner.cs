@@ -12,6 +12,17 @@ public sealed class InventoryUIRuntimeSpawner : MonoBehaviour
 
     public InventoryUI RuntimeInstance => runtimeInstance;
 
+    public void BindPlayer(Player target)
+    {
+        if (target == null)
+            return;
+
+        player = target;
+        inventory = target.GetComponent<Inventory>();
+        if (runtimeInstance != null)
+            runtimeInstance.Initialize(inventory, player);
+    }
+
     private void Awake()
     {
         if (spawnOnAwake)

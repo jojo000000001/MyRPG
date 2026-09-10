@@ -31,6 +31,8 @@ public sealed class HitFeedback : MonoBehaviour
     private MaterialPropertyBlock scratchBlock;
     private Coroutine feedbackRoutine;
     private Coroutine boolRoutine;
+    private Color? flashColorOverride;
+    private bool bodyMotionEnabled = true;
     private Vector3 baseScale;
     private Vector3 baseLocalPosition;
     private bool hasBaseLocalPosition;
@@ -62,32 +64,72 @@ private void OnValidate()
 
 public void Play(Animator targetAnimator, string triggerParam, string boolParam, float boolSeconds)
     {
+        flashColorOverride = null;
         recoilLocalDirection = Vector3.zero;
-        PlayVisualsInternal();
+        PlayVisualsInternal(true);
         PlayAnimator(targetAnimator, triggerParam, boolParam, boolSeconds);
     }
 
     public void Play(Animator targetAnimator, string triggerParam, string boolParam, float boolSeconds, DamageInfo damage)
     {
+        flashColorOverride = null;
         SetRecoilDirection(damage);
-        PlayVisualsInternal();
+        PlayVisualsInternal(true);
         PlayAnimator(targetAnimator, triggerParam, boolParam, boolSeconds);
     }
 
-public void PlayVisuals()
+    public bool IsPlaying => feedbackRoutine != null;
+
+    public void Cancel()
     {
+        if (feedbackRoutine != null)
+        {
+            StopCoroutine(feedbackRoutine);
+            feedbackRoutine = null;
+        }
+
+        if (boolRoutine != null)
+        {
+            StopCoroutine(boolRoutine);
+            boolRoutine = null;
+        }
+
+        RestoreFlash();
+        RestoreScale();
+        RestoreRecoil();
+    }
+
+    public void PlayVisuals()
+    {
+        flashColorOverride = null;
         recoilLocalDirection = Vector3.zero;
-        PlayVisualsInternal();
+        PlayVisualsInternal(true);
+    }
+
+    public void PlayVisuals(Color color)
+    {
+        flashColorOverride = color;
+        recoilLocalDirection = Vector3.zero;
+        PlayVisualsInternal(true);
+    }
+
+    public void PlayFlashOnly(Color color)
+    {
+        flashColorOverride = color;
+        recoilLocalDirection = Vector3.zero;
+        PlayVisualsInternal(false);
     }
 
     public void PlayVisuals(DamageInfo damage)
     {
+        flashColorOverride = null;
         SetRecoilDirection(damage);
-        PlayVisualsInternal();
+        PlayVisualsInternal(true);
     }
 
-    private void PlayVisualsInternal()
+    private void PlayVisualsInternal(bool enableBodyMotion)
     {
+        bodyMotionEnabled = enableBodyMotion;
         CacheTargets();
 
         if (feedbackRoutine != null)
@@ -107,7 +149,9 @@ public void PlayVisuals()
         if (!string.IsNullOrEmpty(triggerParam) && HasAnimatorParameter(targetAnimator, triggerParam, AnimatorControllerParameterType.Trigger))
             targetAnimator.SetTrigger(triggerParam);
 
-        if (!string.IsNullOrEmpty(boolParam) && HasAnimatorParameter(targetAnimator, boolParam, AnimatorControllerParameterType.Bool))
+        if (boolSeconds > 0f
+            && !string.IsNullOrEmpty(boolParam)
+            && HasAnimatorParameter(targetAnimator, boolParam, AnimatorControllerParameterType.Bool))
         {
             targetAnimator.SetBool(boolParam, true);
 
@@ -122,8 +166,8 @@ private IEnumerator FeedbackRoutine()
     {
         float duration = Mathf.Max(
             flashEnabled ? flashSeconds : 0f,
-            scalePunchEnabled ? scalePunchSeconds : 0f,
-            recoilEnabled ? recoilSeconds : 0f);
+            bodyMotionEnabled && scalePunchEnabled ? scalePunchSeconds : 0f,
+            bodyMotionEnabled && recoilEnabled ? recoilSeconds : 0f);
 
         if (duration <= 0f)
         {
@@ -192,7 +236,7 @@ private IEnumerator FeedbackRoutine()
 
     private void UpdateScale(float elapsed)
     {
-        if (!scalePunchEnabled || scaleTarget == null || scalePunchSeconds <= 0f || !hasBaseScale)
+        if (!bodyMotionEnabled || !scalePunchEnabled || scaleTarget == null || scalePunchSeconds <= 0f || !hasBaseScale)
             return;
 
         float t = Mathf.Clamp01(elapsed / scalePunchSeconds);
@@ -202,7 +246,7 @@ private IEnumerator FeedbackRoutine()
 
 private void UpdateRecoil(float elapsed)
     {
-        if (!recoilEnabled || recoilTarget == null || recoilSeconds <= 0f || !hasBaseLocalPosition)
+        if (!bodyMotionEnabled || !recoilEnabled || recoilTarget == null || recoilSeconds <= 0f || !hasBaseLocalPosition)
             return;
 
         Vector3 direction = recoilLocalDirection.sqrMagnitude > 0.0001f
@@ -231,8 +275,9 @@ private void UpdateRecoil(float elapsed)
 
             scratchBlock.Clear();
             targetRenderer.GetPropertyBlock(scratchBlock);
-            scratchBlock.SetColor(BaseColorId, flashColor);
-            scratchBlock.SetColor(ColorId, flashColor);
+            Color color = flashColorOverride ?? flashColor;
+            scratchBlock.SetColor(BaseColorId, color);
+            scratchBlock.SetColor(ColorId, color);
             targetRenderer.SetPropertyBlock(scratchBlock);
         }
     }

@@ -104,10 +104,10 @@ public static class MainMenuUISceneBuilder
         Button startGameButton = CreateMenuButton(card.transform, "StartGameButton", "开始游戏", slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         PlaceMenuButton(startGameButton.GetComponent<RectTransform>(), 0.52f);
 
-        Button settingsButton = CreateMenuButton(card.transform, "SettingsButton", "设置", slotSprite, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
+        Button settingsButton = CreateMenuButton(card.transform, "SettingsButton", "设置", slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         PlaceMenuButton(settingsButton.GetComponent<RectTransform>(), 0.36f);
 
-        Button quitButton = CreateMenuButton(card.transform, "QuitButton", "退出游戏", slotSprite, SheikahUiStyle.Inactive, SheikahUiStyle.Text);
+        Button quitButton = CreateMenuButton(card.transform, "QuitButton", "退出游戏", slotSprite, SheikahUiStyle.Orange, SheikahUiStyle.Text);
         PlaceMenuButton(quitButton.GetComponent<RectTransform>(), 0.20f);
 
         MainMenuUI menuUI = canvasRoot.GetComponent<MainMenuUI>();

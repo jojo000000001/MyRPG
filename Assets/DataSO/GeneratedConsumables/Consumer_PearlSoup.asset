@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_PearlSoup
   m_EditorClassIdentifier: 
   id: 132
-  name: Pearl Soup
+  name: 珍珠汤
   itemType: 1
-  description: A soothing soup for body and mind.
+  description: 温和的汤羹，能滋养身体与心灵。
   propertyList:
   - PropertyType: 0
     Value: 50

@@ -13,12 +13,12 @@ MonoBehaviour:
   m_Name: Weapon_Sword02
   m_EditorClassIdentifier: 
   id: 2
-  name: Sword02
+  name: "\u6797\u5730\u77ED\u5251"
   itemType: 0
-  description: 
+  description: "\u4ECE\u5165\u4FB5\u54E5\u5E03\u6797\u8EAB\u4E0A\u7F34\u83B7\u7684\u77ED\u5251\uFF0C\u53EF\u5728\u80CC\u5305\u4E2D\u88C5\u5907\u3002"
   propertyList:
   - PropertyType: 4
-    Value: 30
+    Value: 5
   - PropertyType: 0
     Value: 0
   icon: {fileID: 21300000, guid: 1e98060d62258424080948f5604e263a, type: 3}

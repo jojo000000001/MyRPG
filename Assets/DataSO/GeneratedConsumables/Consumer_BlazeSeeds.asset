@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_BlazeSeeds
   m_EditorClassIdentifier: 
   id: 123
-  name: Blaze Seeds
+  name: 烈焰种子
   itemType: 1
-  description: Fiery seeds that sharpen your attacks.
+  description: 炽热的种子，能锐化攻击。
   propertyList:
   - PropertyType: 4
     Value: 28

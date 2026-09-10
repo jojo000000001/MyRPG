@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_MagicScroll
   m_EditorClassIdentifier: 
   id: 114
-  name: Magic Scroll
+  name: 魔法卷轴
   itemType: 1
-  description: An arcane scroll that clears mental fatigue.
+  description: 秘法卷轴，能消除精神疲劳。
   propertyList:
   - PropertyType: 2
     Value: 45

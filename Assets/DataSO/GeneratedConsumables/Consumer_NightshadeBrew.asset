@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_NightshadeBrew
   m_EditorClassIdentifier: 
   id: 140
-  name: Nightshade Brew
+  name: 夜影酿
   itemType: 1
-  description: A shadowy brew for mind and swiftness.
+  description: 阴影中酿成的药剂，能提振精神与速度。
   propertyList:
   - PropertyType: 2
     Value: 35

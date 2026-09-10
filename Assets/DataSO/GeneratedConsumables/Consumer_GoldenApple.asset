@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Consumer_GoldenApple
   m_EditorClassIdentifier: 
   id: 111
-  name: Golden Apple
+  name: 金苹果
   itemType: 1
-  description: A rare fruit that restores plenty of HP.
+  description: 珍稀果实，能永久提升生命上限。
   propertyList:
-  - PropertyType: 0
-    Value: 120
+  - PropertyType: 5
+    Value: 20
   icon: {fileID: 21300000, guid: 5b8f5c6b7af45d242aadc9642f94978b, type: 3}
   prefab: {fileID: 0}

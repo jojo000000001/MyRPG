@@ -13,18 +13,16 @@ public sealed class RightMouseCameraOrbit : MonoBehaviour
     [SerializeField] private ThirdPersonCameraRig baseRig;
 
     [Header("Orbit")]
-    [SerializeField] private float yawSpeed = 420f;
-    [SerializeField] private float pitchSpeed = 120f;
+    [SerializeField] private float yawSpeed = 250f;
+    [SerializeField] private float pitchSpeed = 72f;
     [SerializeField] private float minPitch = -10f;
     [SerializeField] private float maxPitch = 35f;
+    [SerializeField] private float holdBeforeOrbitSeconds = 0.16f;
 
     private bool orbiting;
     private float yaw;
     private float pitch;
-
-    private static bool newInputInit;
-    private static object mouseDeltaControl;
-    private static MethodInfo readValueMethod;
+    private float rightMouseDownAt = -999f;
 
     private void Awake()
     {
@@ -34,10 +32,20 @@ public sealed class RightMouseCameraOrbit : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (baseRig == null)
+        if (baseRig == null || baseRig.IsCinematicLook)
             return;
 
-        bool wantOrbit = Input.GetMouseButton(1) && Cursor.lockState == CursorLockMode.Locked;
+        if (Input.GetMouseButtonDown(1))
+            rightMouseDownAt = Time.unscaledTime;
+
+        Player player = Player.Instance;
+        bool playerDodging = player != null && player.IsDodging;
+        bool heldLongEnough = Time.unscaledTime - rightMouseDownAt >= Mathf.Max(0f, holdBeforeOrbitSeconds);
+        bool wantOrbit = Input.GetMouseButton(1)
+            && Cursor.lockState == CursorLockMode.Locked
+            && !GameplayCursor.BlocksWorldLook
+            && !playerDodging
+            && heldLongEnough;
 
         if (wantOrbit && !orbiting)
             BeginOrbit();
@@ -48,9 +56,9 @@ public sealed class RightMouseCameraOrbit : MonoBehaviour
         if (!orbiting)
             return;
 
-        ReadMouseDelta(out float mouseX, out float mouseY);
-        yaw += mouseX * yawSpeed * Time.deltaTime;
-        pitch = Mathf.Clamp(pitch - mouseY * pitchSpeed * Time.deltaTime, minPitch, maxPitch);
+        CameraLookInput.Read(out float mouseX, out float mouseY);
+        yaw += CameraLookInput.Apply(mouseX, yawSpeed);
+        pitch = Mathf.Clamp(pitch - CameraLookInput.Apply(mouseY, pitchSpeed), minPitch, maxPitch);
 
         ApplyCameraPose();
     }
@@ -150,68 +158,5 @@ public sealed class RightMouseCameraOrbit : MonoBehaviour
             fieldName,
             BindingFlags.Instance | BindingFlags.NonPublic);
         field?.SetValue(baseRig, value);
-    }
-
-    private static void ReadMouseDelta(out float mouseX, out float mouseY)
-    {
-        mouseX = Input.GetAxis("Mouse X");
-        mouseY = Input.GetAxis("Mouse Y");
-
-        if (!Mathf.Approximately(mouseX, 0f) || !Mathf.Approximately(mouseY, 0f))
-            return;
-
-        if (TryReadNewInputDelta(out float dx, out float dy))
-        {
-            mouseX = dx;
-            mouseY = dy;
-        }
-    }
-
-    private static bool TryReadNewInputDelta(out float dx, out float dy)
-    {
-        dx = 0f;
-        dy = 0f;
-
-        try
-        {
-            if (!newInputInit)
-            {
-                newInputInit = true;
-
-                var mouseType = System.Type.GetType("UnityEngine.InputSystem.Mouse, Unity.InputSystem");
-                if (mouseType == null) return false;
-
-                var currentProp = mouseType.GetProperty(
-                    "current",
-                    BindingFlags.Public | BindingFlags.Static);
-                if (currentProp == null) return false;
-
-                var mouseCurrent = currentProp.GetValue(null, null);
-                if (mouseCurrent == null) return false;
-
-                var mouseDeltaProp = mouseType.GetProperty(
-                    "delta",
-                    BindingFlags.Public | BindingFlags.Instance);
-                if (mouseDeltaProp == null) return false;
-
-                mouseDeltaControl = mouseDeltaProp.GetValue(mouseCurrent, null);
-                if (mouseDeltaControl == null) return false;
-
-                readValueMethod = mouseDeltaControl.GetType().GetMethod(
-                    "ReadValue",
-                    System.Type.EmptyTypes);
-            }
-
-            if (mouseDeltaControl == null || readValueMethod == null) return false;
-
-            var delta = (Vector2)readValueMethod.Invoke(mouseDeltaControl, null);
-            dx = delta.x;
-            dy = delta.y;
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

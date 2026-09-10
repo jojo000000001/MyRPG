@@ -8,7 +8,8 @@ using UnityEngine;
 public enum ItemType
 {
     Weapon,
-    Consumable
+    Consumable,
+    Shield
 }
 
 /// <summary>
@@ -48,6 +49,19 @@ public class ItemSO : ScriptableObject
     {
         return GetPropertyValue(propertyType) != 0;
     }
+
+    public static string GetItemTypeDisplayName(ItemType itemType)
+    {
+        switch (itemType)
+        {
+            case ItemType.Weapon:
+                return "武器";
+            case ItemType.Shield:
+                return "盾牌";
+            default:
+                return "消耗品";
+        }
+    }
 }
 
 /// <summary>
@@ -66,6 +80,8 @@ public enum ItemPropertyType
     EnergyValue,
     MentalValue,
     SpeedValue,
-    AttackValue
+    AttackValue,
+    MaxHPValue,
+    ShieldDurability
 }
 

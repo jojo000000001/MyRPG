@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_RagePotion
   m_EditorClassIdentifier: 
   id: 127
-  name: Rage Potion
+  name: 狂怒药水
   itemType: 1
-  description: A fierce potion that empowers attacks.
+  description: 猛烈的药水，能大幅增强攻击。
   propertyList:
   - PropertyType: 4
     Value: 32

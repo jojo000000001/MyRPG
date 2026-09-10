@@ -131,8 +131,8 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             if (summary.hasSave)
             {
                 row.summaryText.text =
-                    $"Lv.{summary.level}  ·  {summary.sceneName}\n" +
-                    $"HP {summary.currentHp}/{summary.maxHp}  ·  {summary.savedAtDisplay}";
+                    $"Lv.{summary.level}  ·  {summary.rupees}卢比  ·  {summary.questLabel}\n" +
+                    $"{summary.playTimeDisplay}  ·  {summary.savedAtDisplay}";
                 row.summaryText.color = SheikahUiStyle.Muted;
             }
             else
@@ -208,6 +208,7 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         SheikahUiStyle.SetButtonLabelColor(button, labelColor);
     }
 
+    /// <summary>读取该槽并进入玩法场景，由 SaveLoadService 在场景加载后套用存档。</summary>
     private void LoadSlot(int slotIndex)
     {
         if (!SaveSystem.TryRead(slotIndex, out SaveData data))
@@ -222,6 +223,7 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
         GameSceneLoader.Load(sceneName);
     }
 
+    /// <summary>清空该槽并按新游戏进入场景。</summary>
     private void StartNewGame(int slotIndex)
     {
         SaveSession.BeginNewGame(slotIndex);
@@ -267,7 +269,7 @@ public sealed class MainMenuSaveSlotPanel : MonoBehaviour
             "BackButton",
             "返回",
             new Vector2(220f, 48f),
-            SheikahUiStyle.Inactive,
+            SheikahUiStyle.Orange,
             SheikahUiStyle.Text,
             slotSprite,
             5.5f);

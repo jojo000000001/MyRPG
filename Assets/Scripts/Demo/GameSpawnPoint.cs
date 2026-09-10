@@ -9,7 +9,7 @@ public sealed class GameSpawnPoint : MonoBehaviour
     private static GameSpawnPoint instance;
 
     [SerializeField] private Vector3 spawnPosition = new Vector3(36.6f, 0.81f, -40.23f);
-    [SerializeField] private float spawnRotationY = 352.3f;
+    [SerializeField] private float spawnRotationY = -30.81f;
 
     public static GameSpawnPoint Instance => instance;
 
@@ -41,6 +41,7 @@ public sealed class GameSpawnPoint : MonoBehaviour
         spawnRotationY = rotationY;
     }
 
+    /// <summary>新游戏用的默认存档骨架，只带出生点和空人物/背包。</summary>
     public SaveData CreateNewGameSaveData()
     {
         return new SaveData

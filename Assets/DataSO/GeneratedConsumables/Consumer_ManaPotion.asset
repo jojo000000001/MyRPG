@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_ManaPotion
   m_EditorClassIdentifier: 
   id: 102
-  name: Mana Potion
+  name: 魔力药水
   itemType: 1
-  description: A blue potion prepared for future energy systems.
+  description: 蓝色药水，能恢复精力。
   propertyList:
   - PropertyType: 1
     Value: 40

@@ -30,13 +30,30 @@ public sealed class LevelUpNotice : MonoBehaviour
         BindPrefabUiIfPresent();
     }
 
+    public void BindPlayer(Player target)
+    {
+        if (target == null || player == target)
+            return;
+
+        if (player != null)
+            player.LeveledUp -= HandleLeveledUp;
+
+        player = target;
+
+        if (isActiveAndEnabled)
+            player.LeveledUp += HandleLeveledUp;
+    }
+
     private void OnEnable()
     {
         if (player == null)
             player = Player.Resolve();
 
         if (player != null)
+        {
+            player.LeveledUp -= HandleLeveledUp;
             player.LeveledUp += HandleLeveledUp;
+        }
     }
 
     private void OnDisable()
@@ -63,12 +80,16 @@ public sealed class LevelUpNotice : MonoBehaviour
         detailText.text = BuildRewardText(info);
         ChineseUIFont.Apply(titleText, 42, FontStyle.Bold);
         ChineseUIFont.Apply(detailText, 22, FontStyle.Bold);
+        if (titleText != null)
+            titleText.color = SheikahUiStyle.Orange;
+        if (detailText != null)
+            detailText.color = SheikahUiStyle.Text;
         showRoutine = StartCoroutine(ShowRoutine());
     }
 
     private static string BuildRewardText(Player.LevelUpInfo info)
     {
-        return "+ " + info.BonusMaxHp + " 生命   + " + info.BonusAttack + " 攻击   + "
+        return "+ " + info.BonusMaxHp + " 生命   生命已回满   + " + info.BonusAttack + " 攻击   + "
             + info.BonusDamagePercent.ToString("0.#") + "% 增伤   + "
             + (info.BonusCritChance * 100f).ToString("0.#") + "% 暴击   + "
             + (info.BonusLifeSteal * 100f).ToString("0.#") + "% 吸血";
@@ -124,6 +145,7 @@ public sealed class LevelUpNotice : MonoBehaviour
         Transform panel = existing.Find("Panel");
         titleText = panel != null ? panel.Find("Title")?.GetComponent<Text>() : null;
         detailText = panel != null ? panel.Find("Detail")?.GetComponent<Text>() : null;
+        ApplySheikahStyle();
     }
 
     private void EnsureUi()
@@ -146,23 +168,43 @@ public sealed class LevelUpNotice : MonoBehaviour
         GameObject backdropObject = new GameObject("Backdrop", typeof(RectTransform), typeof(Image));
         backdropObject.transform.SetParent(root.transform, false);
         Image backdrop = backdropObject.GetComponent<Image>();
-        backdrop.color = new Color(0f, 0f, 0f, 0.35f);
+        backdrop.color = SheikahUiStyle.Dim;
         Stretch(backdrop.rectTransform);
 
-        GameObject panel = CreateChild<RectTransform>(root.transform, "Panel").gameObject;
-        RectTransform panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(620f, 150f);
-
-        Image panelImage = panel.AddComponent<Image>();
-        panelImage.color = new Color(0.18f, 0.12f, 0.08f, 0.94f);
-        panelImage.raycastTarget = false;
+        GameObject panel = SheikahUiStyle.CreateCard(root.transform, "Panel", new Vector2(620f, 150f), SheikahUiStyle.PanelSprite, 2.6f);
+        Image fill = panel.transform.Find("Background")?.GetComponent<Image>();
+        if (fill != null)
+            fill.raycastTarget = false;
 
         titleText = CreateLabel(panel.transform, "Title", 42, new Vector2(0f, 28f), new Vector2(580f, 56f));
+        titleText.color = SheikahUiStyle.Orange;
         detailText = CreateLabel(panel.transform, "Detail", 22, new Vector2(0f, -34f), new Vector2(580f, 48f));
-        detailText.color = new Color(0.92f, 0.84f, 0.62f, 1f);
+        detailText.color = SheikahUiStyle.Text;
+    }
+
+    private void ApplySheikahStyle()
+    {
+        if (rootRect == null)
+            return;
+
+        Transform backdrop = rootRect.Find("Backdrop");
+        Image backdropImage = backdrop != null ? backdrop.GetComponent<Image>() : null;
+        if (backdropImage != null)
+            backdropImage.color = SheikahUiStyle.Dim;
+
+        Transform panel = rootRect.Find("Panel");
+        if (panel != null)
+        {
+            SheikahUiStyle.EnsureCardChrome(panel, 2.6f);
+            Image fill = panel.Find("Background")?.GetComponent<Image>();
+            if (fill != null)
+                fill.raycastTarget = false;
+        }
+
+        if (titleText != null)
+            titleText.color = SheikahUiStyle.Orange;
+        if (detailText != null)
+            detailText.color = SheikahUiStyle.Text;
     }
 
     private static Text CreateLabel(Transform parent, string name, int fontSize, Vector2 anchoredPosition, Vector2 size)
@@ -173,7 +215,7 @@ public sealed class LevelUpNotice : MonoBehaviour
         label.alignment = TextAnchor.MiddleCenter;
         label.horizontalOverflow = HorizontalWrapMode.Overflow;
         label.verticalOverflow = VerticalWrapMode.Overflow;
-        label.color = new Color(1f, 0.92f, 0.55f, 1f);
+        label.color = SheikahUiStyle.Orange;
         label.raycastTarget = false;
         ChineseUIFont.Apply(label, fontSize, FontStyle.Bold);
 

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -9,13 +10,15 @@ public static class GameSettings
 
     public const float DefaultMasterVolume = 1f;
 
+    public static event Action Changed;
+
     public static float MasterVolume
     {
         get => PlayerPrefs.GetFloat(MasterVolumeKey, DefaultMasterVolume);
         set
         {
-            PlayerPrefs.SetFloat(MasterVolumeKey, Mathf.Clamp01(value));
-            PlayerPrefs.Save();
+            float clamped = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(MasterVolumeKey, clamped);
             Apply();
         }
     }
@@ -24,10 +27,18 @@ public static class GameSettings
     private static void ApplyOnStartup()
     {
         Apply();
+        Application.quitting -= Save;
+        Application.quitting += Save;
     }
 
     public static void Apply()
     {
         AudioListener.volume = MasterVolume;
+        Changed?.Invoke();
+    }
+
+    public static void Save()
+    {
+        PlayerPrefs.Save();
     }
 }

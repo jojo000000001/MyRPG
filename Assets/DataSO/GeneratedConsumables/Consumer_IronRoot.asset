@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_IronRoot
   m_EditorClassIdentifier: 
   id: 131
-  name: Iron Root
+  name: 铁根
   itemType: 1
-  description: A tough root that restores HP and strength.
+  description: 坚韧的根茎，能恢复生命并增强力量。
   propertyList:
   - PropertyType: 0
     Value: 40

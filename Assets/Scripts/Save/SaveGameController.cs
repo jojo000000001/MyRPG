@@ -1,5 +1,8 @@
 using UnityEngine;
 
+/// <summary>
+/// 挂在玩家身上：F5 快存、F9 读当前槽。真正的读写走 SaveSystem / SaveLoadService。
+/// </summary>
 [DisallowMultipleComponent]
 public sealed class SaveGameController : MonoBehaviour
 {
@@ -22,6 +25,7 @@ public sealed class SaveGameController : MonoBehaviour
 
     private void Start()
     {
+        // 主菜单已经安排了读档或新游戏，这里不要再自动读一次。
         if (SaveSession.PendingNewGame)
             return;
 
@@ -41,6 +45,7 @@ public sealed class SaveGameController : MonoBehaviour
             SaveLoadService.LoadSlotAsync(SaveSession.ActiveSlot, this);
     }
 
+    /// <summary>把当前进度写入正在使用的槽位。</summary>
     public void Save()
     {
         if (!SaveSession.HasValidActiveSlot)
@@ -61,6 +66,7 @@ public sealed class SaveGameController : MonoBehaviour
             Debug.Log($"SaveGameController: Quick saved to slot {SaveSession.ActiveSlot + 1}.");
     }
 
+    /// <summary>读取当前槽。会重载场景后再套用存档。</summary>
     public void Load()
     {
         if (!SaveSession.HasValidActiveSlot)

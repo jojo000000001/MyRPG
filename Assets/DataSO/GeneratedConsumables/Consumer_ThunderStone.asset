@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_ThunderStone
   m_EditorClassIdentifier: 
   id: 120
-  name: Thunder Stone
+  name: 雷石
   itemType: 1
-  description: A charged stone that empowers attacks.
+  description: 蕴藏雷能的石头，能增强攻击。
   propertyList:
   - PropertyType: 4
     Value: 35

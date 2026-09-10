@@ -202,18 +202,8 @@ public sealed class KenneyBarView
             HealthBarSprites.ApplyBarImage(fillRightImage, HealthBarSprites.GetRed("Right"), false, fallback);
         }
 
-        ApplyFillTint(fillLeftImage, fallback);
-        ApplyFillTint(fillMidImage, fallback);
-        ApplyFillTint(fillRightImage, fallback);
-
         usingGreenFill = useGreen;
         fillSpritesBound = fillLeftImage != null && fillLeftImage.sprite != null;
-    }
-
-    private static void ApplyFillTint(Image image, Color tint)
-    {
-        if (image != null && image.sprite != null)
-            image.color = tint;
     }
 
     private static Image CreateSegment(Transform parent, string name)

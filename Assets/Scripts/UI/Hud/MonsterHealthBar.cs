@@ -1,17 +1,25 @@
 using UnityEngine;
 
 /// <summary>
-/// 怪物头顶血条：与玩家 HUD 共用 Kenney 三段血条。
+/// 怪物头顶血条：哥布林用皮革骨头黄条，与玩家 Kenney 绿条区分。
 /// </summary>
 [RequireComponent(typeof(Monster))]
 public class MonsterHealthBar : MonoBehaviour
 {
     private const string BarRootName = "MonsterHealthBar";
-    private const bool ShowBackTrack = true;
+    private const string DefaultStyleResource = "UI/EnemyHealthBar/GoblinHealthBarStyle";
+
+    [Header("Style")]
+    [SerializeField] protected EnemyHealthBarStyle style;
+    [SerializeField] protected string styleResourcePath = DefaultStyleResource;
+
+    [Header("Prefab")]
+    [SerializeField] protected RectTransform barRoot;
+    [SerializeField] protected GameObject barPrefab;
 
     [Header("Layout")]
-    [SerializeField] protected Vector3 worldOffset = new Vector3(0f, 2.2f, 0f);
-    [SerializeField] protected Vector2 barSize = new Vector2(1.25f, 0.16f);
+    [SerializeField] protected Vector3 worldOffset = new Vector3(0f, 2.35f, 0f);
+    [SerializeField] protected Vector2 barSize = new Vector2(2.55f, 0.52f);
     [SerializeField] protected float pixelsPerUnit = 100f;
     [SerializeField] protected int sortingOrder = 50;
 
@@ -21,18 +29,18 @@ public class MonsterHealthBar : MonoBehaviour
     [SerializeField] protected float smoothSpeed = 12f;
 
     private Monster monster;
-    private KenneyBarView barView;
+    private EnemyBarView barView;
     private Canvas canvas;
     private Camera viewCamera;
     private float displayedHealth01 = 1f;
     private Vector2 pixelSize;
-    private float capWidth;
-    private float fillInset;
+    private Vector2 fillInsetPixels;
+    private bool barFromPrefab;
 
     protected virtual void Awake()
     {
         monster = GetComponent<Monster>();
-        HealthBarSprites.BindCatalog(Resources.Load<HealthBarSpriteCatalog>("HealthBarSpriteCatalog"));
+        ResolveStyle();
         EnsureBar();
         UpdateImmediate();
     }
@@ -48,9 +56,21 @@ public class MonsterHealthBar : MonoBehaviour
         float t = smoothSpeed <= 0f ? 1f : 1f - Mathf.Exp(-smoothSpeed * Time.deltaTime);
         displayedHealth01 = Mathf.Lerp(displayedHealth01, target01, t);
 
-        barView?.SetFill01(displayedHealth01, pixelSize.x, fillInset);
+        barView?.SetFill01(displayedHealth01);
         UpdateVisibility(target01);
         FaceCamera();
+    }
+
+    private void ResolveStyle()
+    {
+        if (style != null)
+            return;
+
+        if (!string.IsNullOrEmpty(styleResourcePath))
+            style = Resources.Load<EnemyHealthBarStyle>(styleResourcePath);
+
+        if (style == null)
+            style = Resources.Load<EnemyHealthBarStyle>(DefaultStyleResource);
     }
 
     private void EnsureBar()
@@ -58,22 +78,23 @@ public class MonsterHealthBar : MonoBehaviour
         if (barView != null && barView.IsReady && canvas != null)
             return;
 
-        Transform existing = transform.Find(BarRootName);
-        if (existing != null)
+        RectTransform existingRoot = ResolveExistingRoot();
+        if (existingRoot != null)
         {
-            RectTransform existingRoot = existing as RectTransform;
-            if (KenneyBarView.HasExpectedParts(existingRoot, ShowBackTrack))
+            if (EnemyBarView.HasExpectedParts(existingRoot))
             {
-                barView = KenneyBarView.Bind(existingRoot, ShowBackTrack);
-                canvas = existing.GetComponent<Canvas>();
+                barView = EnemyBarView.Bind(existingRoot);
+                canvas = existingRoot.GetComponent<Canvas>();
+                barRoot = existingRoot;
+                barFromPrefab = true;
             }
             else
             {
-                existing.name = BarRootName + "_Legacy";
+                existingRoot.name = BarRootName + "_Legacy";
                 if (Application.isPlaying)
-                    Destroy(existing.gameObject);
+                    Destroy(existingRoot.gameObject);
                 else
-                    DestroyImmediate(existing.gameObject);
+                    DestroyImmediate(existingRoot.gameObject);
             }
         }
 
@@ -83,13 +104,33 @@ public class MonsterHealthBar : MonoBehaviour
         if (canvas == null && barView != null)
             canvas = barView.Root.GetComponent<Canvas>();
 
+        if (barFromPrefab)
+        {
+            barView?.CaptureFillWidth();
+            if (barView != null && barView.Root != null)
+                pixelSize = barView.Root.sizeDelta;
+            return;
+        }
+
         ApplyWorldLayout();
-        barView?.ApplySprites(displayedHealth01 >= 0.5f);
+        barView?.ApplyStyle(style);
+    }
+
+    private RectTransform ResolveExistingRoot()
+    {
+        if (barRoot != null)
+            return barRoot;
+
+        Transform existing = transform.Find(BarRootName);
+        return existing as RectTransform;
     }
 
     private void CreateBar()
     {
-        barView = KenneyBarView.Create(transform, BarRootName, ShowBackTrack, useTrackPlate: false);
+        if (TryInstantiateBarPrefab())
+            return;
+
+        barView = EnemyBarView.Create(transform, BarRootName);
 
         canvas = barView.Root.GetComponent<Canvas>();
         if (canvas == null)
@@ -98,6 +139,31 @@ public class MonsterHealthBar : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.overrideSorting = true;
         canvas.sortingOrder = sortingOrder;
+        barRoot = barView.Root;
+    }
+
+    private bool TryInstantiateBarPrefab()
+    {
+        if (barPrefab == null)
+            return false;
+
+        GameObject instance = Instantiate(barPrefab, transform, false);
+        instance.name = BarRootName;
+        RectTransform root = instance.GetComponent<RectTransform>();
+        if (root == null || !EnemyBarView.HasExpectedParts(root))
+        {
+            if (Application.isPlaying)
+                Destroy(instance);
+            else
+                DestroyImmediate(instance);
+            return false;
+        }
+
+        barView = EnemyBarView.Bind(root);
+        canvas = instance.GetComponent<Canvas>();
+        barRoot = root;
+        barFromPrefab = true;
+        return barView.IsReady;
     }
 
     private void ApplyWorldLayout()
@@ -105,32 +171,32 @@ public class MonsterHealthBar : MonoBehaviour
         if (barView == null || barView.Root == null)
             return;
 
+        Vector2 size = style != null ? style.worldBarSize : barSize;
+        Vector3 offset = style != null ? style.worldOffset : worldOffset;
+        fillInsetPixels = style != null ? style.fillInsetPixels : new Vector2(22f, 11f);
+
         float ppu = Mathf.Max(1f, pixelsPerUnit);
         pixelSize = new Vector2(
-            Mathf.Max(1f, barSize.x * ppu),
-            Mathf.Max(1f, barSize.y * ppu));
-
-        float scale = pixelSize.x / Mathf.Max(1f, HudBarVisualStyle.BarSize.x);
-        capWidth = Mathf.Clamp(HudBarVisualStyle.CapWidth * scale, 8f, pixelSize.x * 0.4f);
-        fillInset = Mathf.Clamp(HudBarVisualStyle.FillInset * scale, 1f, pixelSize.y * 0.4f);
+            Mathf.Max(1f, size.x * ppu),
+            Mathf.Max(1f, size.y * ppu));
 
         RectTransform root = barView.Root;
         root.anchorMin = new Vector2(0.5f, 0.5f);
         root.anchorMax = new Vector2(0.5f, 0.5f);
         root.pivot = new Vector2(0.5f, 0.5f);
         root.localScale = Vector3.one / ppu;
-        root.position = transform.position + worldOffset;
+        root.position = transform.position + offset;
 
         if (canvas != null)
             canvas.sortingOrder = sortingOrder;
 
-        barView.LayoutContents(pixelSize, capWidth, fillInset);
+        barView.LayoutContents(pixelSize, fillInsetPixels);
     }
 
     private void UpdateImmediate()
     {
         displayedHealth01 = GetHealth01();
-        barView?.SetFill01(displayedHealth01, pixelSize.x, fillInset);
+        barView?.SetFill01(displayedHealth01);
         UpdateVisibility(displayedHealth01);
         FaceCamera();
     }
@@ -151,6 +217,8 @@ public class MonsterHealthBar : MonoBehaviour
         bool visible = true;
         if (hideOnDeath && monster != null && monster.IsDead)
             visible = false;
+        if (monster != null && !monster.ShouldShowHealthBar)
+            visible = false;
         if (hideWhenFull && health01 >= 0.999f)
             visible = false;
 
@@ -161,8 +229,6 @@ public class MonsterHealthBar : MonoBehaviour
     {
         if (barView == null || barView.Root == null || canvas == null || !canvas.enabled)
             return;
-
-        barView.Root.position = transform.position + worldOffset;
 
         if (viewCamera == null)
             viewCamera = Camera.main;

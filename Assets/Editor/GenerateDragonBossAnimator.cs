@@ -23,8 +23,10 @@ public static class GenerateDragonBossAnimator
         AnimationClip flame = LoadClip("Assets/FourEvilDragonsHP/Animations/DragonUsurper/attackFlame.fbx", "Flame Attack");
         AnimationClip hit = LoadClip("Assets/FourEvilDragonsHP/Animations/DragonUsurper/getHit.fbx", "Get Hit");
         AnimationClip die = LoadClip("Assets/FourEvilDragonsHP/Animations/DragonUsurper/Die.fbx", "Die");
+        AnimationClip fly = LoadClip("Assets/FourEvilDragonsHP/Animations/DragonUsurper/FlyIdle.fbx", "Fly Float");
+        AnimationClip land = LoadClip("Assets/FourEvilDragonsHP/Animations/DragonUsurper/Land.fbx", "Land");
 
-        if (idle == null || walk == null || run == null || claw == null || flame == null || hit == null || die == null)
+        if (idle == null || walk == null || run == null || claw == null || flame == null || hit == null || die == null || fly == null || land == null)
         {
             Debug.LogError("GenerateDragonBossAnimator: missing animation clips.");
             return;
@@ -40,6 +42,8 @@ public static class GenerateDragonBossAnimator
         AddParameter(controller, "AttackIndex", AnimatorControllerParameterType.Int);
         AddParameter(controller, "Dead", AnimatorControllerParameterType.Bool);
         AddParameter(controller, "HitBool", AnimatorControllerParameterType.Bool);
+        AddParameter(controller, "Flying", AnimatorControllerParameterType.Bool);
+        AddParameter(controller, "Land", AnimatorControllerParameterType.Trigger);
 
         AnimatorStateMachine root = controller.layers[0].stateMachine;
 
@@ -60,9 +64,16 @@ public static class GenerateDragonBossAnimator
 
         AnimatorState hitState = root.AddState("GetHit", new Vector3(600f, 80f, 0f));
         hitState.motion = hit;
+        hitState.speed = 1.75f;
 
         AnimatorState dieState = root.AddState("Die", new Vector3(600f, 240f, 0f));
         dieState.motion = die;
+
+        AnimatorState flyState = root.AddState("FlyIdle", new Vector3(0f, -80f, 0f));
+        flyState.motion = fly;
+
+        AnimatorState landState = root.AddState("Land", new Vector3(0f, -160f, 0f));
+        landState.motion = land;
 
         root.defaultState = idleState;
 
@@ -73,13 +84,16 @@ public static class GenerateDragonBossAnimator
         AddFloatTransition(runState, idleState, AnimatorConditionMode.Less, 0.05f, 0.25f);
 
         AddExitTransition(clawState, idleState, 0.88f, 0.15f);
-        AddExitTransition(flameState, idleState, 0.88f, 0.15f);
-        AddExitTransition(hitState, idleState, 0.75f, 0.12f);
+        AddExitTransition(flameState, idleState, 0.92f, 0.1f);
+        AddHitExitTransition(hitState, idleState);
+        AddExitTransition(landState, idleState, 0.82f, 0.12f);
 
         AddAnyStateTriggerAttack(root, clawState, 0);
         AddAnyStateTriggerAttack(root, flameState, 1);
-        AddAnyStateBool(root, hitState, "HitBool", true, 0.08f);
-        AddAnyStateBool(root, dieState, "Dead", true, 0.1f);
+        AddAnyStateBool(root, hitState, "HitBool", true, 0.06f, canTransitionToSelf: false);
+        AddAnyStateBool(root, dieState, "Dead", true, 0.08f, canTransitionToSelf: false);
+        AddAnyStateFlying(root, flyState);
+        AddAnyStateLand(root, landState);
 
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
@@ -140,6 +154,40 @@ public static class GenerateDragonBossAnimator
         transition.hasExitTime = false;
         transition.AddCondition(AnimatorConditionMode.If, 0f, "Attack");
         transition.AddCondition(AnimatorConditionMode.Equals, attackIndex, "AttackIndex");
+        transition.AddCondition(AnimatorConditionMode.IfNot, 0f, "Dead");
+    }
+
+    private static void AddAnyStateFlying(AnimatorStateMachine root, AnimatorState destination)
+    {
+        AnimatorStateTransition transition = root.AddAnyStateTransition(destination);
+        transition.canTransitionToSelf = false;
+        transition.duration = 0.18f;
+        transition.hasExitTime = false;
+        transition.AddCondition(AnimatorConditionMode.If, 0f, "Flying");
+        transition.AddCondition(AnimatorConditionMode.IfNot, 0f, "Dead");
+    }
+
+    private static void AddAnyStateLand(AnimatorStateMachine root, AnimatorState destination)
+    {
+        AnimatorStateTransition transition = root.AddAnyStateTransition(destination);
+        transition.canTransitionToSelf = false;
+        transition.duration = 0.12f;
+        transition.hasExitTime = false;
+        transition.AddCondition(AnimatorConditionMode.If, 0f, "Land");
+        transition.AddCondition(AnimatorConditionMode.IfNot, 0f, "Dead");
+    }
+
+    private static void AddHitExitTransition(AnimatorState from, AnimatorState to)
+    {
+        AnimatorStateTransition timed = from.AddTransition(to);
+        timed.hasExitTime = true;
+        timed.exitTime = 0.22f;
+        timed.duration = 0.06f;
+
+        AnimatorStateTransition interrupt = from.AddTransition(to);
+        interrupt.hasExitTime = false;
+        interrupt.duration = 0.06f;
+        interrupt.AddCondition(AnimatorConditionMode.IfNot, 0f, "HitBool");
     }
 
     private static void AddAnyStateBool(
@@ -147,13 +195,16 @@ public static class GenerateDragonBossAnimator
         AnimatorState destination,
         string boolParam,
         bool value,
-        float duration)
+        float duration,
+        bool canTransitionToSelf)
     {
         AnimatorStateTransition transition = root.AddAnyStateTransition(destination);
-        transition.canTransitionToSelf = true;
+        transition.canTransitionToSelf = canTransitionToSelf;
         transition.duration = duration;
         transition.hasExitTime = false;
         transition.AddCondition(value ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot, 0f, boolParam);
+        if (boolParam != "Dead")
+            transition.AddCondition(AnimatorConditionMode.IfNot, 0f, "Dead");
     }
 
     private static void EnsureFolder(string folderPath)

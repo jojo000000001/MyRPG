@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_PoisonVial
   m_EditorClassIdentifier: 
   id: 116
-  name: Poison Vial
+  name: 毒瓶
   itemType: 1
-  description: A toxic brew that clears mental fog.
+  description: 毒性药剂，能驱散精神迷雾。
   propertyList:
   - PropertyType: 2
     Value: 35

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_FrostBerry
   m_EditorClassIdentifier: 
   id: 137
-  name: Frost Berry
+  name: 霜莓
   itemType: 1
-  description: Icy berries that restore energy.
+  description: 冰凉的浆果，能恢复精力。
   propertyList:
   - PropertyType: 1
     Value: 38

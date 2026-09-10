@@ -29,6 +29,9 @@ public static class ConsumableEffectApplicator
             case ItemPropertyType.HPValue:
                 player.RestoreHp(property.Value);
                 break;
+            case ItemPropertyType.MaxHPValue:
+                player.IncreaseMaxHp(property.Value);
+                break;
             case ItemPropertyType.EnergyValue:
                 player.RestoreEnergy(property.Value);
                 break;

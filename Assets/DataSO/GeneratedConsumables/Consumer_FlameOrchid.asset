@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_FlameOrchid
   m_EditorClassIdentifier: 
   id: 133
-  name: Flame Orchid
+  name: 焰兰
   itemType: 1
-  description: A fiery flower that boosts attack and energy.
+  description: 炽热的花朵，能提升攻击并恢复精力。
   propertyList:
   - PropertyType: 4
     Value: 22

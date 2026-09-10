@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_WindFeather
   m_EditorClassIdentifier: 
   id: 124
-  name: Wind Feather
+  name: 风羽
   itemType: 1
-  description: A light feather that boosts movement speed.
+  description: 轻盈的羽毛，能提升移动速度。
   propertyList:
   - PropertyType: 3
     Value: 14

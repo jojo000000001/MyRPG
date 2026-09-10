@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 左上角任务追踪：显示当前任务标题与击杀进度。
+/// 右上角任务追踪：显示当前任务标题与击杀进度。
+/// 挂在 PlayerHUD 下时复用同一套 Canvas 缩放，避免嵌套 Overlay 在不同分辨率下错位。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class QuestTrackerUI : MonoBehaviour
@@ -11,7 +12,11 @@ public sealed class QuestTrackerUI : MonoBehaviour
 
     public static QuestTrackerUI Instance { get; private set; }
 
+    [SerializeField] private Vector2 anchoredPosition = new Vector2(-28f, -86f);
+    [SerializeField] private Vector2 panelSize = new Vector2(360f, 118f);
+
     private RectTransform rootRect;
+    private RectTransform panelRect;
     private GameObject panelObject;
     private Text headerText;
     private Text titleText;
@@ -21,6 +26,10 @@ public sealed class QuestTrackerUI : MonoBehaviour
     {
         if (Instance != null)
             return Instance;
+
+        PlayerHUD hud = PlayerHUD.Resolve();
+        if (hud != null)
+            return hud.EnsureQuestTracker();
 
         GameObject host = new GameObject("QuestTrackerUI");
         return host.AddComponent<QuestTrackerUI>();
@@ -101,36 +110,31 @@ public sealed class QuestTrackerUI : MonoBehaviour
     private void EnsureUi()
     {
         if (rootRect != null)
+        {
+            ApplyPanelLayout();
             return;
+        }
 
-        GameObject overlay = new GameObject("QuestTrackerOverlay", typeof(RectTransform));
-        overlay.transform.SetParent(transform, false);
+        Transform uiParent = CreateOrReuseHost();
+        Transform existingRoot = uiParent.Find("QuestTrackerRoot");
+        GameObject root = existingRoot != null
+            ? existingRoot.gameObject
+            : new GameObject("QuestTrackerRoot", typeof(RectTransform));
+        if (existingRoot == null)
+            root.transform.SetParent(uiParent, false);
 
-        Canvas canvas = overlay.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.overrideSorting = true;
-        canvas.sortingOrder = OverlaySortingOrder;
-
-        CanvasScaler scaler = overlay.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-        overlay.AddComponent<GraphicRaycaster>();
-
-        GameObject root = new GameObject("QuestTrackerRoot", typeof(RectTransform));
-        root.transform.SetParent(overlay.transform, false);
         rootRect = root.GetComponent<RectTransform>();
         Stretch(rootRect);
 
-        panelObject = new GameObject("QuestPanel", typeof(RectTransform), typeof(Image));
-        panelObject.transform.SetParent(root.transform, false);
+        Transform existingPanel = root.transform.Find("QuestPanel");
+        panelObject = existingPanel != null
+            ? existingPanel.gameObject
+            : new GameObject("QuestPanel", typeof(RectTransform), typeof(Image));
+        if (existingPanel == null)
+            panelObject.transform.SetParent(root.transform, false);
 
-        RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0f, 1f);
-        panelRect.anchorMax = new Vector2(0f, 1f);
-        panelRect.pivot = new Vector2(0f, 1f);
-        panelRect.anchoredPosition = new Vector2(28f, -110f);
-        panelRect.sizeDelta = new Vector2(360f, 118f);
+        panelRect = panelObject.GetComponent<RectTransform>();
+        ApplyPanelLayout();
 
         Image panelImage = panelObject.GetComponent<Image>();
         panelImage.color = new Color(0.08f, 0.06f, 0.04f, 0.82f);
@@ -169,11 +173,79 @@ public sealed class QuestTrackerUI : MonoBehaviour
         panelObject.SetActive(false);
     }
 
+    private Transform CreateOrReuseHost()
+    {
+        Transform existingOverlay = transform.Find("QuestTrackerOverlay");
+        Canvas parentCanvas = GetComponentInParent<Canvas>();
+        if (parentCanvas != null)
+        {
+            if (existingOverlay != null)
+                existingOverlay.gameObject.SetActive(false);
+            return transform;
+        }
+
+        GameObject overlay = existingOverlay != null
+            ? existingOverlay.gameObject
+            : new GameObject("QuestTrackerOverlay", typeof(RectTransform));
+        if (existingOverlay == null)
+            overlay.transform.SetParent(transform, false);
+
+        Canvas canvas = overlay.GetComponent<Canvas>();
+        if (canvas == null)
+            canvas = overlay.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = OverlaySortingOrder;
+
+        CanvasScaler scaler = overlay.GetComponent<CanvasScaler>();
+        if (scaler == null)
+            scaler = overlay.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        if (overlay.GetComponent<GraphicRaycaster>() == null)
+            overlay.AddComponent<GraphicRaycaster>();
+
+        return overlay.transform;
+    }
+
+    private void ApplyPanelLayout()
+    {
+        if (panelRect == null && panelObject != null)
+            panelRect = panelObject.GetComponent<RectTransform>();
+        if (panelRect == null)
+            return;
+
+        panelRect.anchorMin = new Vector2(1f, 1f);
+        panelRect.anchorMax = new Vector2(1f, 1f);
+        panelRect.pivot = new Vector2(1f, 1f);
+        panelRect.anchoredPosition = anchoredPosition;
+        panelRect.sizeDelta = panelSize;
+        panelRect.localScale = Vector3.one;
+    }
+
+    private void OnValidate()
+    {
+        anchoredPosition.x = Mathf.Min(0f, anchoredPosition.x);
+        anchoredPosition.y = Mathf.Min(0f, anchoredPosition.y);
+        panelSize.x = Mathf.Max(200f, panelSize.x);
+        panelSize.y = Mathf.Max(80f, panelSize.y);
+        if (panelRect != null)
+            ApplyPanelLayout();
+    }
+
     private static Text CreateText(GameObject parent, string name, string text, int fontSize, TextAnchor alignment)
     {
-        GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
-        textObject.transform.SetParent(parent.transform, false);
-        Text label = textObject.GetComponent<Text>();
+        Transform existing = parent != null ? parent.transform.Find(name) : null;
+        Text label = existing != null ? existing.GetComponent<Text>() : null;
+        if (label == null)
+        {
+            GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
+            textObject.transform.SetParent(parent.transform, false);
+            label = textObject.GetComponent<Text>();
+        }
+
         label.text = text;
         label.alignment = alignment;
         label.color = Color.white;

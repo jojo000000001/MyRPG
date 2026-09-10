@@ -10,16 +10,20 @@ public static class ChineseUIFont
 
     private static readonly string[] PreferredFamilies =
     {
+        "Noto Sans SC",
         "Microsoft YaHei UI",
         "Microsoft YaHei",
+        "微软雅黑 UI",
+        "微软雅黑",
         "SimHei",
+        "黑体",
         "PingFang SC",
         "Noto Sans CJK SC",
         "Arial Unicode MS",
     };
 
     private static readonly string CommonCharacters =
-        "等级经验生命攻击增伤暴击伤害吸血护甲魔抗角色属性还差升级";
+        "等级经验生命攻击增伤暴击伤害吸血护甲魔抗角色属性还差升级商店购买出售离开卢比背包数量返回不足已满回满闪避左键右键跳跃加速";
 
     public static Font Get()
     {

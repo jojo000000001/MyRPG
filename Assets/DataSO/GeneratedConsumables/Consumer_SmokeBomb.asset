@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_SmokeBomb
   m_EditorClassIdentifier: 
   id: 119
-  name: Smoke Bomb
+  name: 烟雾弹
   itemType: 1
-  description: A smoke bomb that boosts escape speed.
+  description: 能提升逃脱速度的烟雾弹。
   propertyList:
   - PropertyType: 3
     Value: 30

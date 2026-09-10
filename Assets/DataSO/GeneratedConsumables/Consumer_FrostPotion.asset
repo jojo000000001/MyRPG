@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_FrostPotion
   m_EditorClassIdentifier: 
   id: 110
-  name: Frost Potion
+  name: 寒霜药水
   itemType: 1
-  description: A chilling brew that restores energy.
+  description: 冰凉药剂，能恢复精力。
   propertyList:
   - PropertyType: 1
     Value: 40

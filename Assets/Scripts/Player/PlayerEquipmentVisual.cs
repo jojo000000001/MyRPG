@@ -18,17 +18,30 @@ public sealed class PlayerEquipmentVisual : MonoBehaviour
     [SerializeField] private Vector3 weaponLocalEulerAngles = Vector3.zero;
     [SerializeField] private Vector3 weaponLocalScale = Vector3.one;
 
+    [Header("Shield")]
+    [SerializeField] private Transform shieldSocket;
+    [SerializeField] private HumanBodyBones shieldAttachmentBone = HumanBodyBones.LeftHand;
+    [SerializeField] private string shieldSocketName = "weapon_l";
+    [SerializeField] private Vector3 shieldLocalPosition = Vector3.zero;
+    [SerializeField] private Vector3 shieldLocalEulerAngles = new Vector3(0f, -90f, -90f);
+    [SerializeField] private Vector3 shieldLocalScale = Vector3.one;
+
     private readonly List<GameObject> defaultSocketChildren = new List<GameObject>();
+    private readonly List<GameObject> defaultShieldChildren = new List<GameObject>();
     private GameObject equippedWeaponVisual;
+    private GameObject equippedShieldVisual;
     private ItemSO currentWeapon;
+    private ItemSO currentShield;
     private bool capturedDefaultSocketChildren;
+    private bool capturedDefaultShieldChildren;
 
     private void Awake()
     {
         ResolveReferences();
         EnsureWeaponSocket();
         EnsureWeaponVisualPivot();
-        RefreshWeaponVisual();
+        EnsureShieldSocket();
+        RefreshEquipmentVisuals();
     }
 
     private void OnEnable()
@@ -36,15 +49,21 @@ public sealed class PlayerEquipmentVisual : MonoBehaviour
         ResolveReferences();
 
         if (player != null)
-            player.EquipmentChanged += RefreshWeaponVisual;
+            player.EquipmentChanged += RefreshEquipmentVisuals;
 
-        RefreshWeaponVisual();
+        RefreshEquipmentVisuals();
     }
 
     private void OnDisable()
     {
         if (player != null)
-            player.EquipmentChanged -= RefreshWeaponVisual;
+            player.EquipmentChanged -= RefreshEquipmentVisuals;
+    }
+
+    private void RefreshEquipmentVisuals()
+    {
+        RefreshWeaponVisual();
+        RefreshShieldVisual();
     }
 
 public void RefreshWeaponVisual()
@@ -254,6 +273,118 @@ private void EnsureWeaponSocket()
         }
 
         return transform;
+    }
+
+    public void RefreshShieldVisual()
+    {
+        ResolveReferences();
+        EnsureShieldSocket();
+        CaptureShieldDefaultChildren();
+
+        ItemSO equippedShield = player != null ? player.EquippedShield : null;
+        if (currentShield == equippedShield && equippedShieldVisual != null)
+        {
+            ApplyDefaultShieldVisualVisibility(equippedShield);
+            return;
+        }
+
+        ClearShieldVisual();
+        currentShield = equippedShield;
+
+        if (equippedShield == null || equippedShield.prefab == null || shieldSocket == null)
+        {
+            ApplyDefaultShieldVisualVisibility(null);
+            return;
+        }
+
+        ApplyDefaultShieldVisualVisibility(equippedShield);
+
+        equippedShieldVisual = Instantiate(equippedShield.prefab, shieldSocket);
+        equippedShieldVisual.name = equippedShield.prefab.name + "_Equipped";
+
+        Transform visualTransform = equippedShieldVisual.transform;
+        visualTransform.localPosition = shieldLocalPosition;
+        visualTransform.localRotation = Quaternion.Euler(shieldLocalEulerAngles);
+        visualTransform.localScale = shieldLocalScale;
+
+        PrepareEquippedVisual(equippedShieldVisual);
+    }
+
+    private void EnsureShieldSocket()
+    {
+        if (shieldSocket != null)
+            return;
+
+        Transform parent = ResolveShieldAttachmentParent();
+        if (parent == null)
+            parent = transform;
+
+        Transform existingSocket = parent.Find(shieldSocketName);
+        if (existingSocket == null)
+            existingSocket = FindChildRecursive(transform, shieldSocketName);
+
+        if (existingSocket != null)
+        {
+            shieldSocket = existingSocket;
+            return;
+        }
+
+        GameObject socketObject = new GameObject(shieldSocketName);
+        shieldSocket = socketObject.transform;
+        shieldSocket.SetParent(parent, false);
+        shieldSocket.localPosition = Vector3.zero;
+        shieldSocket.localRotation = Quaternion.identity;
+        shieldSocket.localScale = Vector3.one;
+    }
+
+    private Transform ResolveShieldAttachmentParent()
+    {
+        if (animator != null && animator.isHuman)
+        {
+            Transform bone = animator.GetBoneTransform(shieldAttachmentBone);
+            if (bone != null)
+                return bone;
+        }
+
+        return transform;
+    }
+
+    private void CaptureShieldDefaultChildren()
+    {
+        if (capturedDefaultShieldChildren || shieldSocket == null)
+            return;
+
+        defaultShieldChildren.Clear();
+        for (int i = 0; i < shieldSocket.childCount; i++)
+        {
+            Transform child = shieldSocket.GetChild(i);
+            if (child == null || child.gameObject == equippedShieldVisual)
+                continue;
+
+            defaultShieldChildren.Add(child.gameObject);
+        }
+
+        capturedDefaultShieldChildren = true;
+    }
+
+    private void ApplyDefaultShieldVisualVisibility(ItemSO equippedShield)
+    {
+        bool showDefaultVisual = equippedShield == null || equippedShield.prefab == null;
+        for (int i = 0; i < defaultShieldChildren.Count; i++)
+        {
+            GameObject child = defaultShieldChildren[i];
+            if (child != null)
+                child.SetActive(showDefaultVisual);
+        }
+    }
+
+    private void ClearShieldVisual()
+    {
+        if (equippedShieldVisual == null)
+            return;
+
+        Destroy(equippedShieldVisual);
+        equippedShieldVisual = null;
     }
 
     private void ClearWeaponVisual()

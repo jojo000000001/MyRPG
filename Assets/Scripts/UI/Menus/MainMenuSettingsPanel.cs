@@ -14,6 +14,8 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
 
     public System.Action HiddenCallback;
 
+    public bool IsVisible => root != null && root.activeSelf;
+
     public static MainMenuSettingsPanel Ensure(Transform canvasRoot)
     {
         if (canvasRoot == null)
@@ -45,6 +47,7 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
 
         UpdateVolumeLabel(GameSettings.MasterVolume);
         SetMainMenuCardVisible(false);
+        transform.SetAsLastSibling();
         root.transform.SetAsLastSibling();
         root.SetActive(true);
     }
@@ -54,6 +57,7 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
         if (root != null)
             root.SetActive(false);
 
+        GameSettings.Save();
         SetMainMenuCardVisible(true);
 
         System.Action callback = HiddenCallback;
@@ -82,37 +86,56 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
         TextMeshProUGUI volumeLabel = SheikahUiStyle.CreateText(card.transform, "VolumeLabel", "主音量", 22f, TextAlignmentOptions.MidlineLeft, FontStyles.Bold, SheikahUiStyle.Text);
         PlaceRow(volumeLabel.rectTransform, 0.58f);
 
-        GameObject sliderObject = SheikahUiStyle.CreateChild(card.transform, "MasterVolumeSlider", typeof(Slider));
+        GameObject sliderObject = SheikahUiStyle.CreateChild(card.transform, "MasterVolumeSlider", typeof(Image), typeof(Slider));
         RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
-        PlaceRow(sliderRect, 0.44f, new Vector2(-96f, 36f));
+        PlaceRow(sliderRect, 0.44f, new Vector2(-96f, 40f));
+
+        Image sliderHit = sliderObject.GetComponent<Image>();
+        sliderHit.color = new Color(1f, 1f, 1f, 0.001f);
+        sliderHit.raycastTarget = true;
+        CanvasRenderer sliderRenderer = sliderObject.GetComponent<CanvasRenderer>();
+        if (sliderRenderer != null)
+            sliderRenderer.cullTransparentMesh = false;
 
         GameObject track = SheikahUiStyle.CreateChild(sliderObject.transform, "Background", typeof(Image));
         SheikahUiStyle.Stretch(track.GetComponent<RectTransform>(), 0f, 8f);
-        SheikahUiStyle.ApplySliced(track.GetComponent<Image>(), slotSprite, SheikahUiStyle.Inactive, 6f);
+        Image trackImage = track.GetComponent<Image>();
+        SheikahUiStyle.ApplySliced(trackImage, slotSprite, SheikahUiStyle.Inactive, 6f);
+        trackImage.raycastTarget = true;
 
         GameObject fillArea = SheikahUiStyle.CreateChild(sliderObject.transform, "Fill Area");
         SheikahUiStyle.Stretch(fillArea.GetComponent<RectTransform>(), 10f, 12f);
 
         GameObject fill = SheikahUiStyle.CreateChild(fillArea.transform, "Fill", typeof(Image));
         SheikahUiStyle.Stretch(fill.GetComponent<RectTransform>());
-        fill.GetComponent<Image>().color = SheikahUiStyle.Orange;
+        Image fillImage = fill.GetComponent<Image>();
+        fillImage.color = SheikahUiStyle.Orange;
+        fillImage.raycastTarget = false;
 
         GameObject handleSlideArea = SheikahUiStyle.CreateChild(sliderObject.transform, "Handle Slide Area");
         SheikahUiStyle.Stretch(handleSlideArea.GetComponent<RectTransform>(), 10f, 0f);
 
         GameObject handle = SheikahUiStyle.CreateChild(handleSlideArea.transform, "Handle", typeof(Image));
         RectTransform handleRect = handle.GetComponent<RectTransform>();
+        handleRect.anchorMin = new Vector2(0f, 0.5f);
+        handleRect.anchorMax = new Vector2(0f, 0.5f);
+        handleRect.pivot = new Vector2(0.5f, 0.5f);
         handleRect.sizeDelta = new Vector2(22f, 28f);
-        handle.GetComponent<Image>().color = SheikahUiStyle.Text;
+        Image handleImage = handle.GetComponent<Image>();
+        handleImage.color = SheikahUiStyle.Text;
+        handleImage.raycastTarget = true;
 
         masterVolumeSlider = sliderObject.GetComponent<Slider>();
         masterVolumeSlider.fillRect = fill.GetComponent<RectTransform>();
         masterVolumeSlider.handleRect = handleRect;
-        masterVolumeSlider.targetGraphic = handle.GetComponent<Image>();
+        masterVolumeSlider.targetGraphic = sliderHit;
+        masterVolumeSlider.transition = Selectable.Transition.None;
+        masterVolumeSlider.navigation = new Navigation { mode = Navigation.Mode.None };
         masterVolumeSlider.direction = Slider.Direction.LeftToRight;
         masterVolumeSlider.minValue = 0f;
         masterVolumeSlider.maxValue = 1f;
         masterVolumeSlider.wholeNumbers = false;
+        masterVolumeSlider.interactable = true;
         masterVolumeSlider.value = GameSettings.MasterVolume;
         masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
 
@@ -124,7 +147,7 @@ public sealed class MainMenuSettingsPanel : MonoBehaviour
             "BackButton",
             "返回",
             new Vector2(220f, 48f),
-            SheikahUiStyle.Inactive,
+            SheikahUiStyle.Orange,
             SheikahUiStyle.Text,
             slotSprite,
             5.5f);

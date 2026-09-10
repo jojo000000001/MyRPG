@@ -22,22 +22,22 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     [SerializeField] private HealthBarSpriteCatalog spriteCatalog;
 
     [Header("Layout")]
-    [SerializeField] private Vector2 anchoredPosition = HudBarVisualStyle.ComputeExpBarAnchoredPosition(20f, 4f);
+    [SerializeField] private Vector2 anchoredPosition = HudBarVisualStyle.ComputeExpBarAnchoredPosition();
     [SerializeField] private Vector2 barSize = HudBarVisualStyle.BarSize;
     [SerializeField] private float capWidth = HudBarVisualStyle.CapWidth;
     [SerializeField] private float fillInset = HudBarVisualStyle.FillInset;
-    [SerializeField] private float labelHeight = 20f;
-    [SerializeField] private float labelBarGap = 4f;
+    [SerializeField] private float labelHeight = HudBarVisualStyle.LabelHeight;
+    [SerializeField] private float labelBarGap = HudBarVisualStyle.LabelBarGap;
     [SerializeField] private float smoothSpeed = 12f;
 
     [Header("Colors")]
     [SerializeField] private Color labelColor = new Color(0.18f, 0.16f, 0.14f, 1f);
-    [SerializeField] private Color expTextColor = new Color(0.22f, 0.28f, 0.36f, 1f);
+    [SerializeField] private Color expTextColor = HudBarVisualStyle.ValueTextColor;
     [SerializeField] private Color backBarTint = HudBarVisualStyle.BackBarTint;
     [SerializeField] private Color backBarFallback = HudBarVisualStyle.BackBarFallback;
     [SerializeField] private Color fillTint = HudBarVisualStyle.BlueFillTint;
 
-    private const int ExpHudLayoutVersion = 6;
+    private const int ExpHudLayoutVersion = 7;
     [SerializeField] private int expHudLayoutVersion;
 
     private RectTransform rootRect;
@@ -145,6 +145,12 @@ public sealed class PlayerExperienceBar : MonoBehaviour
     private void HandleStatsChanged()
     {
         UpdateImmediate();
+    }
+
+    public void BindPlayer(Player target)
+    {
+        if (target != null)
+            player = target;
     }
 
     private void ResolvePlayer()
@@ -333,17 +339,14 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         if (image == null)
             return;
 
-        Sprite sprite = HealthBarSprites.GetBlue(name);
-
         if (fillKind == BarFillKind.Blue)
         {
-            HealthBarSprites.ApplyBarImage(image, sprite, name == MidName, fillTint);
+            Sprite fillSprite = HealthBarSprites.GetBlue(name);
+            HealthBarSprites.ApplyBarImage(image, fillSprite, name == MidName, fillTint);
             return;
         }
 
-        HealthBarSprites.ApplyBarImage(image, sprite, name == MidName, backBarFallback);
-        if (sprite != null)
-            image.color = backBarTint;
+        HealthBarSprites.ApplyBackBarImage(image, HealthBarSprites.GetBack(name), name == MidName);
     }
 
     private bool NeedsLayoutRebuild()
@@ -408,23 +411,23 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         rootRect.anchorMax = new Vector2(0f, 1f);
         rootRect.pivot = new Vector2(0f, 1f);
         rootRect.anchoredPosition = anchoredPosition;
-        rootRect.sizeDelta = new Vector2(barSize.x, labelHeight + labelBarGap + barSize.y);
+        rootRect.sizeDelta = new Vector2(barSize.x, barSize.y + labelBarGap + labelHeight);
 
-        float barTop = -(labelHeight + labelBarGap);
+        float labelY = -(barSize.y + labelBarGap);
         float innerWidth = Mathf.Max(0f, barSize.x - fillInset * 2f);
 
         RectTransform levelRect = levelText.rectTransform;
         levelRect.anchorMin = new Vector2(0f, 1f);
         levelRect.anchorMax = new Vector2(0.5f, 1f);
         levelRect.pivot = new Vector2(0f, 1f);
-        levelRect.anchoredPosition = Vector2.zero;
+        levelRect.anchoredPosition = new Vector2(0f, labelY);
         levelRect.sizeDelta = new Vector2(0f, labelHeight);
 
         RectTransform expRect = expText.rectTransform;
         expRect.anchorMin = new Vector2(0.5f, 1f);
         expRect.anchorMax = new Vector2(1f, 1f);
         expRect.pivot = new Vector2(1f, 1f);
-        expRect.anchoredPosition = Vector2.zero;
+        expRect.anchoredPosition = new Vector2(0f, labelY);
         expRect.sizeDelta = new Vector2(0f, labelHeight);
 
         RectTransform barAreaRect = rootRect.Find(BarAreaName) as RectTransform;
@@ -434,7 +437,7 @@ public sealed class PlayerExperienceBar : MonoBehaviour
         barAreaRect.anchorMin = new Vector2(0f, 1f);
         barAreaRect.anchorMax = new Vector2(0f, 1f);
         barAreaRect.pivot = new Vector2(0f, 1f);
-        barAreaRect.anchoredPosition = new Vector2(0f, barTop);
+        barAreaRect.anchoredPosition = Vector2.zero;
         barAreaRect.sizeDelta = barSize;
 
         LayoutTrackGroup(barAreaRect.Find(BackName) as RectTransform, innerWidth);

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_Sunseed
   m_EditorClassIdentifier: 
   id: 139
-  name: Sunseed
+  name: 日耀种子
   itemType: 1
-  description: A radiant seed that restores HP.
+  description: 闪耀的种子，能恢复生命。
   propertyList:
   - PropertyType: 0
     Value: 48

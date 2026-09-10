@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 存档组件校验。SaveGameController 应配置在 Player.prefab 上。
+/// 读档前检查玩家身上是否有 SaveGameController。组件应配在 Player.prefab 上，这里不会运行时补挂。
 /// </summary>
 static class SaveGameRuntimeInstaller
 {

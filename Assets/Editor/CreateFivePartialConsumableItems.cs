@@ -48,11 +48,11 @@ public static class CreateFivePartialConsumableItems
 
     private static readonly ConsumableDef[] Definitions =
     {
-        new("consumable_ember_tonic.png", "Consumer_EmberTonic", 136, "Ember Tonic", "A heated tonic that sharpens attacks.", ItemPropertyType.AttackValue, 30),
-        new("consumable_frost_berry.png", "Consumer_FrostBerry", 137, "Frost Berry", "Icy berries that restore energy.", ItemPropertyType.EnergyValue, 38),
-        new("consumable_dream_leaf.png", "Consumer_DreamLeaf", 138, "Dream Leaf", "A mystical leaf that clears mental fog.", ItemPropertyType.MentalValue, 48),
-        new("consumable_sunseed.png", "Consumer_Sunseed", 139, "Sunseed", "A radiant seed that restores HP.", ItemPropertyType.HPValue, 48),
-        new("consumable_nightshade_brew.png", "Consumer_NightshadeBrew", 140, "Nightshade Brew", "A shadowy brew for mind and swiftness.", ItemPropertyType.MentalValue, 35, ItemPropertyType.SpeedValue, 8),
+        new("consumable_ember_tonic.png", "Consumer_EmberTonic", 136, "余烬补剂", "温热补剂，能锐化攻击。", ItemPropertyType.AttackValue, 30),
+        new("consumable_frost_berry.png", "Consumer_FrostBerry", 137, "霜莓", "冰凉的浆果，能恢复精力。", ItemPropertyType.EnergyValue, 38),
+        new("consumable_dream_leaf.png", "Consumer_DreamLeaf", 138, "梦叶", "神秘叶片，能驱散精神迷雾。", ItemPropertyType.MentalValue, 48),
+        new("consumable_sunseed.png", "Consumer_Sunseed", 139, "日耀种子", "闪耀的种子，能恢复生命。", ItemPropertyType.HPValue, 48),
+        new("consumable_nightshade_brew.png", "Consumer_NightshadeBrew", 140, "夜影酿", "阴影中酿成的药剂，能提振精神与速度。", ItemPropertyType.MentalValue, 35, ItemPropertyType.SpeedValue, 8),
     };
 
     [MenuItem("Tools/Items/Create 5 Partial Consumables And Add To Backpack")]

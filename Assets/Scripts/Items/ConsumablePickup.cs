@@ -19,14 +19,28 @@ public sealed class ConsumablePickup : MonoBehaviour, IPoolable
     private Vector3 visualBaseLocalPosition;
     private bool hasVisualBase;
     private bool consumed;
+    private float pickupAllowedAt;
+    private bool autoEquipWeapon = true;
 
     public ItemSO Item => item;
+
+    public void DelayPickup(float seconds)
+    {
+        pickupAllowedAt = Time.time + Mathf.Max(0f, seconds);
+    }
+
+    public void SetAutoEquipOnPickup(bool enabled)
+    {
+        autoEquipWeapon = enabled;
+    }
 
     public void OnSpawnedFromPool()
     {
         transform.localRotation = Quaternion.identity;
         hasVisualBase = false;
         consumed = false;
+        pickupAllowedAt = 0f;
+        autoEquipWeapon = true;
         CacheVisualBase();
     }
 
@@ -82,7 +96,7 @@ private void OnTriggerEnter(Collider other)
 
     private void TryPickup(Collider other)
     {
-        if (!consumeOnPickup || item == null || consumed)
+        if (!consumeOnPickup || item == null || consumed || Time.time < pickupAllowedAt)
             return;
 
         Player player = other.GetComponentInParent<Player>();
@@ -104,10 +118,12 @@ private void OnTriggerEnter(Collider other)
 
     private bool TryHandlePickup(Player player, Inventory inventory)
     {
-        if (addToInventory && inventory != null && inventory.AddItem(item, 1, insertAtFront: true))
+        if (addToInventory && inventory != null && inventory.AddItem(item, 1))
         {
             if (ShouldAutoEquipWeapon(player))
                 player.EquipWeapon(item);
+            if (ShouldAutoEquipShield(player))
+                player.EquipShield(item);
 
             return true;
         }
@@ -115,7 +131,10 @@ private void OnTriggerEnter(Collider other)
         if (IsWeaponItem(item) && ShouldAutoEquipWeapon(player))
             return player.EquipWeapon(item);
 
-        if (IsWeaponItem(item))
+        if (IsShieldItem(item) && ShouldAutoEquipShield(player))
+            return player.EquipShield(item);
+
+        if (IsWeaponItem(item) || IsShieldItem(item))
             return false;
 
         ApplyTo(player);
@@ -137,11 +156,20 @@ private void OnTriggerEnter(Collider other)
     }
 
 
-private bool ShouldAutoEquipWeapon(Player player)
+    private bool ShouldAutoEquipWeapon(Player player)
     {
-        return player != null
+        return autoEquipWeapon
+            && player != null
             && player.EquippedWeapon == null
             && IsWeaponItem(item);
+    }
+
+    private bool ShouldAutoEquipShield(Player player)
+    {
+        return autoEquipWeapon
+            && player != null
+            && player.EquippedShield == null
+            && IsShieldItem(item);
     }
 
     private static bool IsWeaponItem(ItemSO candidate)
@@ -149,5 +177,12 @@ private bool ShouldAutoEquipWeapon(Player player)
         return candidate != null
             && candidate.itemType == ItemType.Weapon
             && candidate.GetPropertyValue(ItemPropertyType.AttackValue) > 0;
+    }
+
+    private static bool IsShieldItem(ItemSO candidate)
+    {
+        return candidate != null
+            && candidate.itemType == ItemType.Shield
+            && candidate.GetPropertyValue(ItemPropertyType.ShieldDurability) > 0;
     }
 }

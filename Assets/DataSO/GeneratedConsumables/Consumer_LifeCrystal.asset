@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Consumer_LifeCrystal
   m_EditorClassIdentifier: 
   id: 117
-  name: Life Crystal
+  name: 生命水晶
   itemType: 1
-  description: A radiant crystal that restores HP.
+  description: 闪耀的水晶，能永久提升生命上限。
   propertyList:
-  - PropertyType: 0
-    Value: 90
+  - PropertyType: 5
+    Value: 15
   icon: {fileID: 21300000, guid: a75ae6abe4650d3459dd4fd2bd594b49, type: 3}
   prefab: {fileID: 0}

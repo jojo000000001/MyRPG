@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_ShadowVial
   m_EditorClassIdentifier: 
   id: 130
-  name: Shadow Vial
+  name: 暗影瓶
   itemType: 1
-  description: A dark brew that boosts escape speed.
+  description: 深色药剂，能提升逃脱速度。
   propertyList:
   - PropertyType: 3
     Value: 18

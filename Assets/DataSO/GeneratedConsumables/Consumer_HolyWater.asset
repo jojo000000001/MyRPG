@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_HolyWater
   m_EditorClassIdentifier: 
   id: 135
-  name: Holy Water
+  name: 圣水
   itemType: 1
-  description: Blessed water that heals body and spirit.
+  description: 受祝福的清水，能治愈身体与心灵。
   propertyList:
   - PropertyType: 0
     Value: 60

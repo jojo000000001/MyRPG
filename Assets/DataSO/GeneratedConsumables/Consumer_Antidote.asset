@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Consumer_Antidote
   m_EditorClassIdentifier: 
   id: 104
-  name: Antidote
+  name: 解毒剂
   itemType: 1
-  description: A herbal remedy prepared for future status effects.
+  description: 草本解药，用于解除异常状态。
   propertyList:
   - PropertyType: 2
     Value: 30

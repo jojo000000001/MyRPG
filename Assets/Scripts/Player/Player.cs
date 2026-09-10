@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -82,6 +83,9 @@ public class Player : MonoBehaviour, IDamageable
     [SerializeField, Range(0f, 1f)] private float lifeStealPercent = 0.02f;
     [Header("Equipment")]
     [SerializeField] private ItemSO equippedWeapon;
+    [SerializeField] private ItemSO equippedShield;
+    [Header("Wallet")]
+    [SerializeField] private int rupees = 80;
     [Header("Hit Feedback")]
     [SerializeField] private bool enableHitFeedback = true;
     [SerializeField] private string hitTriggerParam = "Hit";
@@ -147,16 +151,19 @@ public class Player : MonoBehaviour, IDamageable
     public float ExperienceProgress01 => ExperienceToNextLevel <= 0 ? 0f : Mathf.Clamp01((float)Experience / ExperienceToNextLevel);
     /// <summary>距离升级还差多少经验。</summary>
     public int ExperienceRemaining => Mathf.Max(0, ExperienceToNextLevel - Experience);
-    /// <summary>额外伤害百分比。</summary>
-    public float DamageBonusPercent => damageBonusPercent;
+    /// <summary>额外伤害百分比（含完美闪避等临时加成）。</summary>
+    public float DamageBonusPercent => damageBonusPercent + GetActivePerfectDodgeDamageBonus();
     /// <summary>暴击率（0~1）。</summary>
     public float CritChance => critChance;
     /// <summary>暴击伤害倍率。</summary>
     public float CritDamageMultiplier => critDamageMultiplier;
     /// <summary>攻击吸血比例（0~1）。</summary>
     public float LifeStealPercent => lifeStealPercent;
+    /// <summary>商店货币（卢比）。</summary>
+    public int Rupees => Mathf.Max(0, rupees);
     public event Action EquipmentChanged;
     public event Action StatsChanged;
+    public event Action WalletChanged;
     public event Action<LevelUpInfo> LeveledUp;
 
     public readonly struct LevelUpInfo
@@ -186,12 +193,30 @@ public class Player : MonoBehaviour, IDamageable
     /// <summary>总攻击力（基础 + 武器 + 消耗品临时加成）。</summary>
     public int AttackPower => Mathf.Max(0, BaseAttackPower + WeaponAttackBonus + GetActiveAttackBuff());
     public ItemSO EquippedWeapon => equippedWeapon;
+    /// <summary>当前装备的盾牌。</summary>
+    public ItemSO EquippedShield => equippedShield;
     public bool IsDead => currentHp <= 0;
     public bool ConversationLocked { get; private set; }
     public float Health01 => maxHp <= 0 ? 0f : Mathf.Clamp01((float)currentHp / maxHp);
     public float Energy01 => maxEnergy <= 0 ? 0f : Mathf.Clamp01((float)currentEnergy / maxEnergy);
     public float Mental01 => maxMental <= 0 ? 0f : Mathf.Clamp01((float)currentMental / maxMental);
     public bool IsAttacking => animator != null && animator.GetBool("IsAttacking");
+    public bool IsDodging => Time.time < dodgeStartedAt + dodgeDuration;
+    /// <summary>是否正在举盾格挡。</summary>
+    public bool IsGuarding => isGuarding;
+    /// <summary>盾牌当前耐久。</summary>
+    public int CurrentShieldDurability => currentShieldDurability;
+    /// <summary>盾牌耐久上限。</summary>
+    public int MaxShieldDurability
+    {
+        get
+        {
+            int fromItem = equippedShield != null
+                ? equippedShield.GetPropertyValue(ItemPropertyType.ShieldDurability)
+                : 0;
+            return fromItem > 0 ? fromItem : Mathf.Max(1, maxShieldDurability);
+        }
+    }
     public bool AssistCameraBehindOnAttack => assistCameraBehindOnAttack;
     public bool IsCombatCameraAssistActive => assistCameraBehindOnAttack && IsAttacking && HasEnemyInAttackAssistRange();
     public float CombatCameraYaw => TryGetAttackAssistYaw(out float yaw) ? yaw : transform.eulerAngles.y;
@@ -203,7 +228,7 @@ public class Player : MonoBehaviour, IDamageable
     [Tooltip("移动时的转身速度（度/秒）")]
     public float rotateSpeed = 50f;
     public float gravity = -10f;
-    public float jumpHeight = 5f;
+    public float jumpHeight = 1.15f;
 
     // 跳跃手感参数：输入缓冲、土狼时间、下落加速度和短按跳跃。
     [Header("Jump Comfort")]
@@ -247,6 +272,50 @@ public class Player : MonoBehaviour, IDamageable
     [Tooltip("水平移动减速响应时间（秒）。")]
     public float decelerationTime = 0.12f;
 
+    [Header("Sprint")]
+    [Tooltip("加速键。")]
+    [SerializeField] private KeyCode sprintKey = KeyCode.LeftShift;
+    [Tooltip("按住加速键时的移动速度倍率。")]
+    [SerializeField] private float sprintSpeedMultiplier = 1.6f;
+
+    [Header("Dodge")]
+    [Tooltip("闪避用的鼠标按键：0 左键，1 右键，2 中键。")]
+    [SerializeField] private int dodgeMouseButton = 1;
+    [Tooltip("闪避位移距离。")]
+    [SerializeField] private float dodgeDistance = 5f;
+    [Tooltip("闪避突进持续时间（秒）。")]
+    [SerializeField] private float dodgeDuration = 0.28f;
+    [Tooltip("两次闪避的最小间隔（秒）。")]
+    [SerializeField] private float dodgeCooldown = 0.7f;
+    [Tooltip("闪避无敌时间（秒）。")]
+    [SerializeField] private float dodgeInvulnSeconds = 0.28f;
+    [Tooltip("闪避时穿过怪物，但仍与地形碰撞。")]
+    [SerializeField] private bool dodgePassThroughMonsters = true;
+
+    [Header("Perfect Dodge")]
+    [Tooltip("在闪避无敌时间内躲开一次攻击时，短时间提升伤害。")]
+    [SerializeField] private bool enablePerfectDodge = true;
+    [Tooltip("闪避开始后这段时间内躲开攻击才算完美闪避。")]
+    [SerializeField] private float perfectDodgeWindowSeconds = 0.18f;
+    [Tooltip("完美闪避后的额外增伤百分比。50 表示伤害 ×1.5。")]
+    [SerializeField] private float perfectDodgeDamageBonusPercent = 50f;
+    [Tooltip("完美闪避增伤持续时间（秒）。")]
+    [SerializeField] private float perfectDodgeBuffDuration = 3.5f;
+
+    [Header("Shield")]
+    [Tooltip("举盾按键。按住期间格挡伤害。")]
+    [SerializeField] private KeyCode shieldKey = KeyCode.E;
+    [Tooltip("盾牌耐久上限。格挡时按伤害扣除，耐久耗尽后破盾。")]
+    [SerializeField] private int maxShieldDurability = 60;
+    [Tooltip("举盾时的移动速度倍率。")]
+    [SerializeField] private float shieldMoveSpeedMultiplier = 0.45f;
+    [Tooltip("未在战斗中时每秒回复的耐久。")]
+    [SerializeField] private float shieldRegenPerSecond = 8f;
+    [Tooltip("脱离战斗后，开始回复盾牌耐久的延迟（秒）。")]
+    [SerializeField] private float shieldRegenDelay = 5f;
+
+    private const float MonsterBackSlideSpeed = 6.5f;
+
     // 运行时移动状态：镜头参考、竖直速度和水平移动平滑值。
     private Transform cachedViewTransform;
     private Vector3 velocity;
@@ -254,7 +323,26 @@ public class Player : MonoBehaviour, IDamageable
 
     private float lastGroundedAt = -999f;
     private float lastJumpPressedAt = -999f;
+    private float jumpLockGroundUntil = -999f;
     private float adOnlyStartedAt = -1f;
+    private float dodgeStartedAt = -999f;
+    private float dodgeReadyAt = -999f;
+    private Vector3 dodgeDirection = Vector3.forward;
+    private bool perfectDodgeGrantedThisDodge;
+    private float perfectDodgeBuffExpiresAt = -999f;
+    private static readonly Color PerfectDodgeFlashColor = new Color(1f, 0.84f, 0.28f, 1f);
+    private static readonly Color ShieldBlockFlashColor = new Color(0.55f, 0.82f, 1f, 1f);
+    private static readonly int IsGuardingHash = Animator.StringToHash("IsGuarding");
+    private int currentShieldDurability;
+    private bool isGuarding;
+    private float lastCombatAt = -999f;
+    private float shieldRegenResidue;
+    private readonly List<Collider> dodgeIgnoredColliders = new List<Collider>();
+    private readonly RaycastHit[] dodgeGroundHits = new RaycastHit[8];
+    private readonly Collider[] monsterOverlapHits = new Collider[16];
+    private bool dodgeIgnoringMonsters;
+    private LayerMask dodgeSavedExcludeLayers;
+    private bool dodgeExcludeLayersStored;
 
     // 仅按 A/D 时的镜头相对转向状态。
     private bool adYawActive;
@@ -298,6 +386,19 @@ public class Player : MonoBehaviour, IDamageable
         attackYawOffset = Mathf.Clamp(attackYawOffset, -45f, 45f);
         attackInputMinInterval = Mathf.Max(0f, attackInputMinInterval);
         attackInputBufferTime = Mathf.Max(0f, attackInputBufferTime);
+        dodgeDistance = Mathf.Max(0.5f, dodgeDistance);
+        dodgeDuration = Mathf.Max(0.08f, dodgeDuration);
+        dodgeCooldown = Mathf.Max(dodgeDuration, dodgeCooldown);
+        dodgeInvulnSeconds = Mathf.Max(0f, dodgeInvulnSeconds);
+        dodgeMouseButton = Mathf.Clamp(dodgeMouseButton, 0, 6);
+        perfectDodgeWindowSeconds = Mathf.Clamp(perfectDodgeWindowSeconds, 0f, Mathf.Max(0.01f, dodgeInvulnSeconds));
+        perfectDodgeDamageBonusPercent = Mathf.Max(0f, perfectDodgeDamageBonusPercent);
+        perfectDodgeBuffDuration = Mathf.Max(0.1f, perfectDodgeBuffDuration);
+        maxShieldDurability = Mathf.Max(1, maxShieldDurability);
+        shieldMoveSpeedMultiplier = Mathf.Clamp(shieldMoveSpeedMultiplier, 0.15f, 1f);
+        shieldRegenPerSecond = Mathf.Max(0f, shieldRegenPerSecond);
+        shieldRegenDelay = Mathf.Max(0f, shieldRegenDelay);
+        sprintSpeedMultiplier = Mathf.Max(1f, sprintSpeedMultiplier);
         level = Mathf.Max(1, level);
         experience = Mathf.Max(0, experience);
         critChance = Mathf.Clamp01(critChance);
@@ -321,7 +422,7 @@ public class Player : MonoBehaviour, IDamageable
         int defense = damageType == DamageType.TrueDamage ? 0 : targetDefense;
         return CombatDamageFormulas.Calculate(
             baseDamage,
-            damageBonusPercent,
+            DamageBonusPercent,
             critChance,
             critDamageMultiplier,
             defense,
@@ -379,7 +480,7 @@ public class Player : MonoBehaviour, IDamageable
         damageBonusPercent += bonusDamagePercentPerLevel;
         critChance = Mathf.Clamp01(critChance + bonusCritChancePerLevel);
         lifeStealPercent = Mathf.Clamp01(lifeStealPercent + bonusLifeStealPerLevel);
-        currentHp = Mathf.Min(maxHp, currentHp + bonusMaxHpPerLevel);
+        currentHp = maxHp;
 
         return new LevelUpInfo(
             Level,
@@ -403,6 +504,49 @@ public class Player : MonoBehaviour, IDamageable
         return true;
     }
 
+    public bool EquipShield(ItemSO shield)
+    {
+        if (!IsValidShield(shield))
+            return false;
+
+        if (equippedShield == shield)
+            return true;
+
+        int previousMax = MaxShieldDurability;
+        equippedShield = shield;
+        RescaleShieldDurability(previousMax);
+        NotifyEquipmentChanged();
+        return true;
+    }
+
+    public void UnequipShield()
+    {
+        if (equippedShield == null)
+            return;
+
+        int previousMax = MaxShieldDurability;
+        equippedShield = null;
+        RescaleShieldDurability(previousMax);
+        NotifyEquipmentChanged();
+    }
+
+    private void RescaleShieldDurability(int previousMax)
+    {
+        int newMax = MaxShieldDurability;
+        if (previousMax <= 0)
+        {
+            currentShieldDurability = newMax;
+            StatsChanged?.Invoke();
+            return;
+        }
+
+        currentShieldDurability = Mathf.Clamp(
+            Mathf.RoundToInt(currentShieldDurability * (float)newMax / previousMax),
+            0,
+            newMax);
+        StatsChanged?.Invoke();
+    }
+
     public void UnequipWeapon()
     {
         if (equippedWeapon == null)
@@ -410,6 +554,13 @@ public class Player : MonoBehaviour, IDamageable
 
         equippedWeapon = null;
         NotifyEquipmentChanged();
+    }
+
+    private static bool IsValidShield(ItemSO item)
+    {
+        return item != null
+            && item.itemType == ItemType.Shield
+            && item.GetPropertyValue(ItemPropertyType.ShieldDurability) > 0;
     }
 
     private static bool IsValidWeapon(ItemSO item)
@@ -449,12 +600,19 @@ public class Player : MonoBehaviour, IDamageable
         currentHp = Mathf.Max(1, maxHp);
         currentEnergy = Mathf.Max(0, maxEnergy);
         currentMental = Mathf.Max(0, maxMental);
+        currentShieldDurability = MaxShieldDurability;
     }
 
     private void OnDestroy()
     {
+        SetMonsterPassthrough(false);
         if (instance == this)
             instance = null;
+    }
+
+    private void OnDisable()
+    {
+        SetMonsterPassthrough(false);
     }
 
     private void Start()
@@ -471,6 +629,28 @@ public class Player : MonoBehaviour, IDamageable
         }
     }
 
+    public void AddRupees(int amount)
+    {
+        if (amount == 0)
+            return;
+
+        rupees = Mathf.Max(0, rupees + amount);
+        WalletChanged?.Invoke();
+    }
+
+    public bool TrySpendRupees(int amount)
+    {
+        if (amount <= 0)
+            return true;
+
+        if (rupees < amount)
+            return false;
+
+        rupees -= amount;
+        WalletChanged?.Invoke();
+        return true;
+    }
+
     public void SetConversationLocked(bool locked)
     {
         if (ConversationLocked == locked)
@@ -483,6 +663,8 @@ public class Player : MonoBehaviour, IDamageable
         pendingComboInput = false;
         comboCount = 0;
         CancelQueuedAttackHitbox();
+        CancelDodge();
+        StopGuarding();
         StopMovementAnimation();
         smoothedMove = Vector3.zero;
     }
@@ -492,13 +674,26 @@ public class Player : MonoBehaviour, IDamageable
     {
         if (IsDead)
         {
+            StopGuarding();
             StopMovementAnimation();
             return;
         }
 
         if (ConversationLocked)
         {
+            StopGuarding();
             UpdateConversationLock();
+            return;
+        }
+
+        if (IsGameplayUiBlocking())
+        {
+            if (IsDodging)
+                CancelDodge();
+            StopGuarding();
+            StopMovementAnimation();
+            ApplyGravityOnly();
+            UpdateConsumableBuffs();
             return;
         }
 
@@ -512,10 +707,29 @@ public class Player : MonoBehaviour, IDamageable
         float vertical = Mathf.Abs(verticalAxis) > 0.001f ? verticalAxis : verticalKey;
         float horizontal = Mathf.Abs(horizontalAxis) > 0.001f ? horizontalAxis : horizontalKey;
 
-        bool isGrounded = characterController.isGrounded;
+        runValue = IsSprintHeld() ? 1f : 0.5f;
 
-        if (Input.GetKeyDown(KeyCode.LeftShift)) runValue = 1f;
-        if (Input.GetKeyUp(KeyCode.LeftShift)) runValue = 0.5f;
+        bool isGrounded = characterController.isGrounded;
+        bool standingOnMonster = TryGetMonsterGroundPush(out Vector3 monsterSlide);
+        if (standingOnMonster)
+            isGrounded = false;
+
+        TryStartDodge(vertical, horizontal, isGrounded);
+
+        if (IsDodging)
+        {
+            StopGuarding();
+            UpdateDodge(isGrounded);
+            UpdateConsumableBuffs();
+            return;
+        }
+
+        UpdateShield();
+        if (isGuarding)
+            runValue = 0.35f;
+
+        if (dodgeIgnoringMonsters && !ShouldKeepMonsterPassthrough())
+            SetMonsterPassthrough(false);
 
         bool hasForward = vertical > 0.01f;
         bool hasBack = vertical < -0.01f;
@@ -627,9 +841,15 @@ public class Player : MonoBehaviour, IDamageable
 
         // 对水平速度做指数平滑，让起步和停下更柔和。
         Vector3 move = SmoothHorizontalMove(desiredMove);
+        if (standingOnMonster && velocity.y <= 0f)
+        {
+            move += monsterSlide * MonsterBackSlideSpeed;
+            velocity.y = Mathf.Min(velocity.y, -5f);
+        }
 
         // 跳跃使用缓冲输入和土狼时间，降低“差一点按到”的挫败感。
-        if (isGrounded)
+        bool jumpLocked = Time.time < jumpLockGroundUntil;
+        if (isGrounded && !jumpLocked)
         {
             lastGroundedAt = Time.time;
             if (velocity.y < 0f)
@@ -641,12 +861,15 @@ public class Player : MonoBehaviour, IDamageable
 
         bool hasBufferedJump = Time.time - lastJumpPressedAt <= Mathf.Max(0f, jumpBufferTime);
         bool canUseCoyoteJump = Time.time - lastGroundedAt <= Mathf.Max(0f, coyoteTime);
-        if (hasBufferedJump && canUseCoyoteJump)
+        if (hasBufferedJump && canUseCoyoteJump && !jumpLocked)
         {
             velocity.y = Mathf.Sqrt(-2f * gravity * jumpHeight);
             lastJumpPressedAt = -999f;
             lastGroundedAt = -999f;
-            animator.SetTrigger("Jump");
+            jumpLockGroundUntil = Time.time + 0.14f;
+            StopGuarding();
+            if (animator != null)
+                animator.SetTrigger("Jump");
         }
         else
         {
@@ -654,10 +877,11 @@ public class Player : MonoBehaviour, IDamageable
             velocity.y += gravity * gravityMultiplier * Time.deltaTime;
         }
 
-        if (Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
+        if (!jumpLocked && Input.GetKeyUp(KeyCode.Space) && velocity.y > 0f)
             velocity.y *= Mathf.Clamp01(lowJumpVelocityMultiplier);
 
         characterController.Move((move + velocity) * Time.deltaTime);
+        ResolveMonsterPenetration();
 
         // 连击窗口过期后复位，避免角色一直保持攻击状态。
         if (comboCount != 0 && Time.time > comboExpiresAt)
@@ -694,13 +918,31 @@ public class Player : MonoBehaviour, IDamageable
             buffChanged = true;
         }
 
+        if (perfectDodgeBuffExpiresAt > 0f && Time.time >= perfectDodgeBuffExpiresAt)
+        {
+            perfectDodgeBuffExpiresAt = -999f;
+            buffChanged = true;
+        }
+
         if (buffChanged)
             StatsChanged?.Invoke();
+
+        RegenShieldDurability();
     }
 
     private float GetEffectiveMoveSpeed()
     {
-        return moveSpeed + GetActiveSpeedBuff();
+        float speed = moveSpeed + GetActiveSpeedBuff();
+        if (isGuarding)
+            return speed * shieldMoveSpeedMultiplier;
+        if (IsSprintHeld())
+            speed *= sprintSpeedMultiplier;
+        return speed;
+    }
+
+    private bool IsSprintHeld()
+    {
+        return Input.GetKey(sprintKey) || Input.GetKey(KeyCode.RightShift);
     }
 
     private int GetActiveSpeedBuff()
@@ -712,6 +954,8 @@ public class Player : MonoBehaviour, IDamageable
     {
         return Time.time < attackBuffExpiresAt ? attackBuffAmount : 0;
     }
+
+    private bool IsAttackComboActive => comboCount != 0 || IsAttacking;
 
     private void RegisterComboAttackInput()
     {
@@ -752,6 +996,8 @@ public class Player : MonoBehaviour, IDamageable
         if (Time.time - lastAttackInputAt < attackInputMinInterval)
             return false;
 
+        StopGuarding();
+
         lastAttackInputAt = Time.time;
         comboCount++;
         if (comboCount > 3)
@@ -787,15 +1033,30 @@ public class Player : MonoBehaviour, IDamageable
     public bool TryTakeDamage(DamageInfo damage)
     {
         if (IsDead) return false;
+        if (IsDodgeInvulnerable())
+        {
+            TryActivatePerfectDodge();
+            return false;
+        }
+
+        int remainingDamage = Mathf.Max(0, damage.amount);
+        if (remainingDamage == 0)
+            return false;
+
+        if (TryAbsorbShieldDamage(ref remainingDamage) && remainingDamage <= 0)
+            return false;
+
         if (Time.time - lastDamagedAt < damageInvulnSeconds) return false;
 
-        int appliedDamage = Mathf.Max(0, damage.amount);
-        if (appliedDamage == 0) return false;
+        int appliedDamage = remainingDamage;
 
         lastDamagedAt = Time.time;
+        NotifyCombat();
         currentHp = Mathf.Max(0, currentHp - appliedDamage);
-        PlayHitFeedback(damage);
-        DamageNumberSpawner.Show(damage, transform.position);
+        DamageInfo hpDamage = damage;
+        hpDamage.amount = appliedDamage;
+        PlayHitFeedback(hpDamage);
+        DamageNumberSpawner.Show(hpDamage, transform.position);
 
         if (IsDead)
             OnDeath();
@@ -817,6 +1078,16 @@ public class Player : MonoBehaviour, IDamageable
         currentHp = Mathf.Min(maxHp, currentHp + amount);
         if (currentHp != previousHp)
             StatsChanged?.Invoke();
+    }
+
+    public void IncreaseMaxHp(int amount)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+
+        maxHp += amount;
+        currentHp = Mathf.Min(maxHp, currentHp + amount);
+        StatsChanged?.Invoke();
     }
 
     public void RestoreEnergy(int amount)
@@ -886,10 +1157,14 @@ public class Player : MonoBehaviour, IDamageable
     {
         comboCount = 0;
         CancelQueuedAttackHitbox();
+        CancelDodge();
         attackBuffAmount = 0;
         attackBuffExpiresAt = -999f;
         speedBuffAmount = 0;
         speedBuffExpiresAt = -999f;
+        perfectDodgeBuffExpiresAt = -999f;
+        perfectDodgeGrantedThisDodge = false;
+        StopGuarding();
         velocity = Vector3.zero;
         smoothedMove = Vector3.zero;
         StopMovementAnimation();
@@ -899,7 +1174,12 @@ public class Player : MonoBehaviour, IDamageable
     private void UpdateConversationLock()
     {
         StopMovementAnimation();
+        ApplyGravityOnly();
+        UpdateConsumableBuffs();
+    }
 
+    private void ApplyGravityOnly()
+    {
         bool isGrounded = characterController.isGrounded;
         if (isGrounded)
         {
@@ -914,7 +1194,557 @@ public class Player : MonoBehaviour, IDamageable
         }
 
         characterController.Move(velocity * Time.deltaTime);
-        UpdateConsumableBuffs();
+        ResolveMonsterPenetration();
+    }
+
+    private void TryStartDodge(float vertical, float horizontal, bool isGrounded)
+    {
+        if (IsDodging || Time.time < dodgeReadyAt)
+            return;
+
+        bool pressed = Input.GetMouseButtonDown(dodgeMouseButton);
+        if (!pressed)
+            return;
+
+        bool canCoyoteDodge = Time.time - lastGroundedAt <= Mathf.Max(0f, coyoteTime);
+        bool canHitDodge = Time.time - lastDamagedAt <= Mathf.Max(0.25f, damageInvulnSeconds);
+        if (!isGrounded && !canCoyoteDodge && !canHitDodge)
+            return;
+
+        Vector3 direction = ResolveDodgeDirection(vertical, horizontal);
+        dodgeDirection = direction;
+        dodgeStartedAt = Time.time;
+        dodgeReadyAt = Time.time + dodgeCooldown;
+        perfectDodgeGrantedThisDodge = false;
+        smoothedMove = Vector3.zero;
+        pendingComboInput = false;
+        comboCount = 0;
+        CancelQueuedAttackHitbox();
+        CancelHitReaction();
+        SetMonsterPassthrough(dodgePassThroughMonsters);
+
+        if (animator != null)
+            animator.SetBool("IsAttacking", false);
+
+        transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+        if (animator != null)
+        {
+            animator.SetFloat("x", 0f);
+            animator.SetFloat("y", 1f);
+        }
+    }
+
+    private void UpdateDodge(bool isGrounded)
+    {
+        bool hasWalkableGround = TryGetDodgeGroundY(out float groundY);
+        if (hasWalkableGround || isGrounded)
+        {
+            lastGroundedAt = Time.time;
+            if (velocity.y < 0f)
+                velocity.y = -1f;
+        }
+        else
+        {
+            float gravityMultiplier = velocity.y < 0f ? Mathf.Max(1f, fallGravityMultiplier) : 1f;
+            velocity.y += gravity * gravityMultiplier * Time.deltaTime;
+            velocity.y = Mathf.Max(velocity.y, -12f);
+        }
+
+        float speed = dodgeDistance / Mathf.Max(0.08f, dodgeDuration);
+        Vector3 motion = (dodgeDirection * speed + new Vector3(0f, velocity.y, 0f)) * Time.deltaTime;
+        const int steps = 3;
+        Vector3 step = motion / steps;
+        for (int i = 0; i < steps; i++)
+            characterController.Move(step);
+
+        if (TryGetDodgeGroundY(out groundY))
+            SnapFeetToGround(groundY);
+
+        if (animator != null)
+        {
+            animator.SetFloat("x", 0f);
+            animator.SetFloat("y", 1f);
+        }
+    }
+
+    private Vector3 ResolveDodgeDirection(float vertical, float horizontal)
+    {
+        float camYaw = GetCameraYawDegrees();
+        Quaternion camYawRot = Quaternion.Euler(0f, camYaw, 0f);
+        Vector3 planar = camYawRot * Vector3.forward * vertical + camYawRot * Vector3.right * horizontal;
+        planar.y = 0f;
+        if (planar.sqrMagnitude > 0.0001f)
+            return planar.normalized;
+
+        Vector3 facing = transform.forward;
+        facing.y = 0f;
+        if (facing.sqrMagnitude > 0.0001f)
+            return facing.normalized;
+
+        return Vector3.forward;
+    }
+
+    private void CancelDodge()
+    {
+        dodgeStartedAt = -999f;
+        SetMonsterPassthrough(false);
+    }
+
+    private void CancelHitReaction()
+    {
+        if (hitFeedback != null)
+            hitFeedback.Cancel();
+
+        if (animator == null)
+            return;
+
+        if (!string.IsNullOrEmpty(hitTriggerParam))
+            animator.ResetTrigger(hitTriggerParam);
+
+        if (!string.IsNullOrEmpty(hitBoolParam))
+            animator.SetBool(hitBoolParam, false);
+    }
+
+    private void SetMonsterPassthrough(bool enabled)
+    {
+        if (!enabled)
+        {
+            RestoreIgnoredMonsterColliders();
+            return;
+        }
+
+        if (characterController == null)
+            return;
+
+        if (!dodgeExcludeLayersStored)
+        {
+            dodgeSavedExcludeLayers = characterController.excludeLayers;
+            dodgeExcludeLayersStored = true;
+        }
+
+        int monsterLayer = LayerMask.NameToLayer("Monster");
+        if (monsterLayer >= 0)
+            characterController.excludeLayers = dodgeSavedExcludeLayers | (1 << monsterLayer);
+
+        if (dodgeIgnoringMonsters)
+            return;
+
+        Collider playerCollider = characterController;
+        IReadOnlyList<Monster> monsters = Monster.Active;
+        for (int i = 0; i < monsters.Count; i++)
+        {
+            Monster monster = monsters[i];
+            if (monster == null)
+                continue;
+
+            Collider[] colliders = monster.GetComponentsInChildren<Collider>(true);
+            for (int c = 0; c < colliders.Length; c++)
+            {
+                Collider other = colliders[c];
+                if (other == null || other == playerCollider || !other.enabled || other.isTrigger)
+                    continue;
+
+                if (IsOversizedCollider(other))
+                    continue;
+
+                Physics.IgnoreCollision(playerCollider, other, true);
+                dodgeIgnoredColliders.Add(other);
+            }
+        }
+
+        dodgeIgnoringMonsters = true;
+    }
+
+    private void RestoreIgnoredMonsterColliders()
+    {
+        if (!dodgeIgnoringMonsters && dodgeIgnoredColliders.Count == 0 && !dodgeExcludeLayersStored)
+            return;
+
+        if (TryGetDodgeGroundY(out float groundY))
+            SnapFeetToGround(groundY);
+
+        if (dodgeExcludeLayersStored && characterController != null)
+            characterController.excludeLayers = dodgeSavedExcludeLayers;
+
+        dodgeExcludeLayersStored = false;
+
+        if (!dodgeIgnoringMonsters && dodgeIgnoredColliders.Count == 0)
+            return;
+
+        Collider playerCollider = characterController;
+        for (int i = 0; i < dodgeIgnoredColliders.Count; i++)
+        {
+            Collider other = dodgeIgnoredColliders[i];
+            if (playerCollider == null || other == null)
+                continue;
+
+            Physics.IgnoreCollision(playerCollider, other, false);
+        }
+
+        dodgeIgnoredColliders.Clear();
+        dodgeIgnoringMonsters = false;
+    }
+
+    private bool ShouldKeepMonsterPassthrough()
+    {
+        if (!dodgeIgnoringMonsters)
+            return false;
+
+        if (IsDodging)
+            return true;
+
+        if (Time.time > dodgeStartedAt + dodgeDuration + 0.45f)
+            return false;
+
+        return IsOverlappingIgnoredMonsters();
+    }
+
+    private bool IsOverlappingIgnoredMonsters()
+    {
+        if (characterController == null || dodgeIgnoredColliders.Count == 0)
+            return false;
+
+        Bounds playerBounds = characterController.bounds;
+        playerBounds.Expand(-0.04f);
+
+        for (int i = 0; i < dodgeIgnoredColliders.Count; i++)
+        {
+            Collider other = dodgeIgnoredColliders[i];
+            if (other == null || !other.enabled)
+                continue;
+
+            if (playerBounds.Intersects(other.bounds))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetDodgeGroundY(out float groundY)
+    {
+        groundY = transform.position.y;
+        if (characterController == null)
+            return false;
+
+        float radius = Mathf.Max(0.08f, characterController.radius * 0.82f);
+        float probeHeight = characterController.height + 0.45f;
+        Vector3 origin = transform.position + Vector3.up * probeHeight;
+        float maxDistance = probeHeight + 1.35f;
+
+        int mask = Physics.DefaultRaycastLayers;
+        int monsterLayer = LayerMask.NameToLayer("Monster");
+        if (monsterLayer >= 0)
+            mask &= ~(1 << monsterLayer);
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            origin,
+            radius,
+            Vector3.down,
+            dodgeGroundHits,
+            maxDistance,
+            mask,
+            QueryTriggerInteraction.Ignore);
+
+        float bestDistance = float.MaxValue;
+        bool found = false;
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = dodgeGroundHits[i];
+            if (hit.collider == null || hit.collider == characterController)
+                continue;
+
+            if (hit.normal.y < 0.4f)
+                continue;
+
+            if (hit.distance < bestDistance)
+            {
+                bestDistance = hit.distance;
+                groundY = hit.point.y;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private void SnapFeetToGround(float groundY)
+    {
+        if (characterController == null)
+            return;
+
+        float bottomY = transform.position.y + characterController.center.y - characterController.height * 0.5f;
+        float deltaY = (groundY + 0.02f) - bottomY;
+        if (deltaY > 0.85f || deltaY < -0.45f)
+            return;
+
+        if (Mathf.Abs(deltaY) < 0.001f)
+            return;
+
+        characterController.Move(Vector3.up * deltaY);
+    }
+
+    private void ResolveMonsterPenetration()
+    {
+        if (characterController == null || !characterController.enabled || IsDodging)
+            return;
+
+        Vector3 worldCenter = transform.position + characterController.center;
+        float radius = characterController.radius * 0.98f;
+        float half = Mathf.Max(0f, characterController.height * 0.5f - characterController.radius);
+        Vector3 up = Vector3.up * half;
+
+        int count = Physics.OverlapCapsuleNonAlloc(
+            worldCenter + up,
+            worldCenter - up,
+            radius,
+            monsterOverlapHits,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+
+        Vector3 totalPush = Vector3.zero;
+        for (int i = 0; i < count; i++)
+        {
+            Collider other = monsterOverlapHits[i];
+            if (other == null || other == characterController || other.isTrigger)
+                continue;
+
+            if (other.GetComponentInParent<Monster>() == null)
+                continue;
+
+            if (IsOversizedCollider(other))
+                continue;
+
+            Vector3 direction;
+            float distance;
+            if (!Physics.ComputePenetration(
+                    characterController,
+                    transform.position,
+                    transform.rotation,
+                    other,
+                    other.transform.position,
+                    other.transform.rotation,
+                    out direction,
+                    out distance))
+                continue;
+
+            Vector3 push = direction * (distance + 0.02f);
+            if (push.y > 0f)
+                push.y *= 0.15f;
+            totalPush += push;
+        }
+
+        if (totalPush.sqrMagnitude < 0.0001f)
+            return;
+
+        if (totalPush.magnitude > 0.7f)
+            totalPush = totalPush.normalized * 0.7f;
+
+        characterController.Move(totalPush);
+    }
+
+    private bool TryGetMonsterGroundPush(out Vector3 push)
+    {
+        push = Vector3.zero;
+        if (characterController == null)
+            return false;
+
+        float radius = Mathf.Max(0.12f, characterController.radius * 0.85f);
+        Vector3 origin = transform.position + Vector3.up * (characterController.center.y + 0.05f);
+        float distance = characterController.center.y + characterController.skinWidth + 0.28f;
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            origin,
+            radius,
+            Vector3.down,
+            dodgeGroundHits,
+            distance,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore);
+
+        Collider monsterCollider = null;
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = dodgeGroundHits[i];
+            if (hit.collider == null || hit.collider == characterController)
+                continue;
+
+            if (hit.normal.y < 0.35f)
+                continue;
+
+            if (hit.collider.GetComponentInParent<Monster>() == null)
+                continue;
+
+            monsterCollider = hit.collider;
+            break;
+        }
+
+        if (monsterCollider == null)
+            return false;
+
+        Vector3 away = transform.position - monsterCollider.bounds.center;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.0001f)
+            away = transform.forward;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.0001f)
+            away = Vector3.right;
+
+        push = away.normalized;
+        return true;
+    }
+
+    private static bool IsOversizedCollider(Collider collider)
+    {
+        Vector3 extents = collider.bounds.extents;
+        return extents.x > 20f || extents.y > 20f || extents.z > 20f;
+    }
+
+    public bool IsDodgeInvulnerable()
+    {
+        return Time.time < dodgeStartedAt + dodgeInvulnSeconds;
+    }
+
+    private float GetActivePerfectDodgeDamageBonus()
+    {
+        return Time.time < perfectDodgeBuffExpiresAt ? perfectDodgeDamageBonusPercent : 0f;
+    }
+
+    private bool IsInPerfectDodgeWindow()
+    {
+        return enablePerfectDodge
+            && perfectDodgeWindowSeconds > 0f
+            && Time.time < dodgeStartedAt + perfectDodgeWindowSeconds;
+    }
+
+    private void TryActivatePerfectDodge()
+    {
+        if (perfectDodgeGrantedThisDodge || !IsInPerfectDodgeWindow())
+            return;
+
+        perfectDodgeGrantedThisDodge = true;
+        perfectDodgeBuffExpiresAt = Time.time + perfectDodgeBuffDuration;
+        StatsChanged?.Invoke();
+
+        HitImpactManager.PlayImpact(0.08f, 0.2f, 0.16f, 0.12f, 22f);
+        hitFeedback?.PlayVisuals(PerfectDodgeFlashColor);
+    }
+
+    private void UpdateShield()
+    {
+        if (currentShieldDurability <= 0 || IsDodging || IsDead)
+        {
+            StopGuarding();
+            return;
+        }
+
+        if (Input.GetKeyDown(shieldKey))
+        {
+            StartGuarding();
+            return;
+        }
+
+        if (!Input.GetKey(shieldKey))
+        {
+            StopGuarding();
+            return;
+        }
+
+        if (IsAttackComboActive)
+            return;
+
+        StartGuarding();
+    }
+
+    private void StartGuarding()
+    {
+        if (isGuarding)
+            return;
+
+        isGuarding = true;
+        pendingComboInput = false;
+        comboCount = 0;
+        CancelQueuedAttackHitbox();
+        if (animator != null)
+        {
+            animator.SetBool("IsAttacking", false);
+            animator.SetBool(IsGuardingHash, true);
+        }
+    }
+
+    private void StopGuarding()
+    {
+        if (!isGuarding)
+            return;
+
+        isGuarding = false;
+        if (animator != null)
+            animator.SetBool(IsGuardingHash, false);
+    }
+
+    private bool TryAbsorbShieldDamage(ref int remainingDamage)
+    {
+        if (!isGuarding || currentShieldDurability <= 0 || remainingDamage <= 0)
+            return false;
+
+        int absorbed = Mathf.Min(currentShieldDurability, remainingDamage);
+        currentShieldDurability -= absorbed;
+        remainingDamage -= absorbed;
+        NotifyCombat();
+        shieldRegenResidue = 0f;
+        StatsChanged?.Invoke();
+
+        hitFeedback?.PlayFlashOnly(ShieldBlockFlashColor);
+
+        if (currentShieldDurability <= 0)
+            StopGuarding();
+
+        return true;
+    }
+
+    public void NotifyCombat()
+    {
+        lastCombatAt = Time.time;
+        shieldRegenResidue = 0f;
+    }
+
+    private void RegenShieldDurability()
+    {
+        if (currentShieldDurability >= MaxShieldDurability || shieldRegenPerSecond <= 0f)
+            return;
+
+        if (IsInCombat())
+        {
+            NotifyCombat();
+            return;
+        }
+
+        if (Time.time < lastCombatAt + shieldRegenDelay)
+            return;
+
+        shieldRegenResidue += shieldRegenPerSecond * Time.deltaTime;
+        int restored = Mathf.FloorToInt(shieldRegenResidue);
+        if (restored <= 0)
+            return;
+
+        shieldRegenResidue -= restored;
+        int previous = currentShieldDurability;
+        currentShieldDurability = Mathf.Min(MaxShieldDurability, currentShieldDurability + restored);
+        if (currentShieldDurability != previous)
+            StatsChanged?.Invoke();
+    }
+
+    private static bool IsInCombat()
+    {
+        return BgmManager.IsEnemyCombatActive;
+    }
+
+    private static bool IsGameplayUiBlocking()
+    {
+        if (GameplayPauseMenu.IsOpen || DialogueUI.IsOpen || ShopUI.IsOpen)
+            return true;
+
+        PlayerHUD hud = PlayerHUD.Instance;
+        return hud != null && hud.IsInventoryOpen;
     }
 
     private void StopMovementAnimation()
@@ -1142,6 +1972,9 @@ public class Player : MonoBehaviour, IDamageable
             attackHitbox.ActivateOnce();
     }
 
+    /// <summary>
+    /// 采集玩家等级、资源、装备、护甲、盾牌耐久和卢比。
+    /// </summary>
     public PlayerSaveData CaptureSaveData()
     {
         return new PlayerSaveData
@@ -1155,10 +1988,18 @@ public class Player : MonoBehaviour, IDamageable
             maxMental = maxMental,
             currentMental = currentMental,
             attackPower = attackPower,
+            armor = armor,
+            currentShieldDurability = currentShieldDurability,
             equippedWeaponId = equippedWeapon != null ? equippedWeapon.id : 0,
+            equippedShieldId = equippedShield != null ? equippedShield.id : 0,
+            rupees = Rupees,
         };
     }
 
+    /// <summary>
+    /// 还原玩家数值。护甲/盾牌耐久为 -1 表示旧存档没写，保持装备后的默认值。
+    /// 临时增益不入库，读档后清掉。
+    /// </summary>
     public void ApplySaveData(PlayerSaveData data, ItemCatalog itemCatalog)
     {
         if (data == null)
@@ -1173,17 +2014,33 @@ public class Player : MonoBehaviour, IDamageable
         maxMental = Mathf.Max(0, data.maxMental);
         currentMental = Mathf.Clamp(data.currentMental, 0, maxMental);
         attackPower = Mathf.Max(0, data.attackPower);
+        if (data.armor >= 0)
+            armor = Mathf.Max(0, data.armor);
 
         attackBuffAmount = 0;
         attackBuffExpiresAt = -999f;
         speedBuffAmount = 0;
         speedBuffExpiresAt = -999f;
+        perfectDodgeBuffExpiresAt = -999f;
+        perfectDodgeGrantedThisDodge = false;
+
+        rupees = Mathf.Max(0, data.rupees);
+        WalletChanged?.Invoke();
 
         ItemSO weapon = itemCatalog != null ? itemCatalog.GetItem(data.equippedWeaponId) : null;
         if (weapon != null)
             EquipWeapon(weapon);
         else
             UnequipWeapon();
+
+        ItemSO shield = itemCatalog != null ? itemCatalog.GetItem(data.equippedShieldId) : null;
+        if (shield != null)
+            EquipShield(shield);
+        else
+            UnequipShield();
+
+        if (data.currentShieldDurability >= 0)
+            currentShieldDurability = Mathf.Clamp(data.currentShieldDurability, 0, MaxShieldDurability);
 
         StatsChanged?.Invoke();
     }

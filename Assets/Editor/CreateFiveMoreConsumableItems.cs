@@ -45,11 +45,11 @@ public static class CreateFiveMoreConsumableItems
 
     private static readonly ConsumableDef[] Definitions =
     {
-        new("consumable_amber_wine.png", "Consumer_AmberWine", 121, "Amber Wine", "A warm drink that restores HP and energy.", ItemPropertyType.HPValue, 55, ItemPropertyType.EnergyValue, 20),
-        new("consumable_crystal_dust.png", "Consumer_CrystalDust", 122, "Crystal Dust", "Shimmering dust that clears mental fatigue.", ItemPropertyType.MentalValue, 50),
-        new("consumable_blaze_seeds.png", "Consumer_BlazeSeeds", 123, "Blaze Seeds", "Fiery seeds that sharpen your attacks.", ItemPropertyType.AttackValue, 28),
-        new("consumable_wind_feather.png", "Consumer_WindFeather", 124, "Wind Feather", "A light feather that boosts movement speed.", ItemPropertyType.SpeedValue, 14),
-        new("consumable_silver_salve.png", "Consumer_SilverSalve", 125, "Silver Salve", "A soothing salve that restores HP.", ItemPropertyType.HPValue, 65),
+        new("consumable_amber_wine.png", "Consumer_AmberWine", 121, "琥珀酒", "温热酒饮，能恢复生命和精力。", ItemPropertyType.HPValue, 55, ItemPropertyType.EnergyValue, 20),
+        new("consumable_crystal_dust.png", "Consumer_CrystalDust", 122, "水晶粉", "闪光的粉尘，能消除精神疲劳。", ItemPropertyType.MentalValue, 50),
+        new("consumable_blaze_seeds.png", "Consumer_BlazeSeeds", 123, "烈焰种子", "炽热的种子，能锐化攻击。", ItemPropertyType.AttackValue, 28),
+        new("consumable_wind_feather.png", "Consumer_WindFeather", 124, "风羽", "轻盈的羽毛，能提升移动速度。", ItemPropertyType.SpeedValue, 14),
+        new("consumable_silver_salve.png", "Consumer_SilverSalve", 125, "银药膏", "温和药膏，能恢复生命。", ItemPropertyType.HPValue, 65),
     };
 
     [MenuItem("Tools/Items/Create 5 More Consumable ItemSOs")]

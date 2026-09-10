@@ -45,16 +45,16 @@ public static class CreateBatchConsumableItems
 
     private static readonly ConsumableDef[] Definitions =
     {
-        new("consumable_greater_hp_potion.png", "Consumer_GreaterHpPotion", 106, "Greater HP Potion", "Restores a large amount of HP.", ItemPropertyType.HPValue, 150),
-        new("consumable_roast_meat.png", "Consumer_RoastMeat", 107, "Roast Meat", "Grilled meat skewer that restores HP.", ItemPropertyType.HPValue, 80),
-        new("consumable_healing_herb.png", "Consumer_HealingHerb", 108, "Healing Herb", "Fresh herbs that gently restore HP.", ItemPropertyType.HPValue, 50),
-        new("consumable_fire_bomb.png", "Consumer_FireBomb", 109, "Fire Bomb", "A throwable bomb infused with fire.", ItemPropertyType.AttackValue, 30),
-        new("consumable_frost_potion.png", "Consumer_FrostPotion", 110, "Frost Potion", "A chilling brew that restores energy.", ItemPropertyType.EnergyValue, 40),
-        new("consumable_golden_apple.png", "Consumer_GoldenApple", 111, "Golden Apple", "A rare fruit that restores plenty of HP.", ItemPropertyType.HPValue, 120),
-        new("consumable_strength_tonic.png", "Consumer_StrengthTonic", 112, "Strength Tonic", "A tonic that sharpens your attack.", ItemPropertyType.AttackValue, 20),
-        new("consumable_swiftness_elixir.png", "Consumer_SwiftnessElixir", 113, "Swiftness Elixir", "A quick sip that boosts movement speed.", ItemPropertyType.SpeedValue, 10),
-        new("consumable_magic_scroll.png", "Consumer_MagicScroll", 114, "Magic Scroll", "An arcane scroll that clears mental fatigue.", ItemPropertyType.MentalValue, 45),
-        new("consumable_honey_cookie.png", "Consumer_HoneyCookie", 115, "Honey Cookie", "Sweet cookies that restore HP and energy.", ItemPropertyType.HPValue, 45, ItemPropertyType.EnergyValue, 15),
+        new("consumable_greater_hp_potion.png", "Consumer_GreaterHpPotion", 106, "高级生命药水", "能永久提升生命上限。", ItemPropertyType.MaxHPValue, 10),
+        new("consumable_roast_meat.png", "Consumer_RoastMeat", 107, "烤肉串", "烤过的肉串，能恢复生命。", ItemPropertyType.HPValue, 80),
+        new("consumable_healing_herb.png", "Consumer_HealingHerb", 108, "治愈草药", "新鲜草药，能温和地恢复生命。", ItemPropertyType.HPValue, 50),
+        new("consumable_fire_bomb.png", "Consumer_FireBomb", 109, "火焰炸弹", "灌入火焰的投掷炸弹。", ItemPropertyType.AttackValue, 30),
+        new("consumable_frost_potion.png", "Consumer_FrostPotion", 110, "寒霜药水", "冰凉药剂，能恢复精力。", ItemPropertyType.EnergyValue, 40),
+        new("consumable_golden_apple.png", "Consumer_GoldenApple", 111, "金苹果", "珍稀果实，能永久提升生命上限。", ItemPropertyType.MaxHPValue, 20),
+        new("consumable_strength_tonic.png", "Consumer_StrengthTonic", 112, "力量补剂", "能提升攻击力的补剂。", ItemPropertyType.AttackValue, 20),
+        new("consumable_swiftness_elixir.png", "Consumer_SwiftnessElixir", 113, "迅捷药剂", "喝下后能提升移动速度。", ItemPropertyType.SpeedValue, 10),
+        new("consumable_magic_scroll.png", "Consumer_MagicScroll", 114, "魔法卷轴", "秘法卷轴，能消除精神疲劳。", ItemPropertyType.MentalValue, 45),
+        new("consumable_honey_cookie.png", "Consumer_HoneyCookie", 115, "蜂蜜饼干", "香甜饼干，能恢复生命和精力。", ItemPropertyType.HPValue, 45, ItemPropertyType.EnergyValue, 15),
     };
 
     [MenuItem("Tools/Items/Create 10 Batch Consumable ItemSOs")]
